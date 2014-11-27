@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 '''
 
-Tassaron's Library of Useful Functions
-+ Cross-Platform Terminal ASCII Screen Drawing
+Tassaron's Somewhat Satisfactory Script Simplifier
++ Somewhat Satisfactory ASCII Screen Simplifier
 by tassaron - 2013-14
 
 '''
@@ -106,35 +106,27 @@ def anykey(*messages):
     def tcflush():
         termios.tcflush(sys.stdin, termios.TCIOFLUSH)
 
-# initialized a new program -- sets up global variables etc
-def init(*keywords):
+# initializes a new program -- sets up global variables etc
+def init(title='Default Title',width=79, height=40,*keywords):
     # interpret initialization keywords
     global cols; global rows
+    cols=width;  rows=height
+    if os.name == 'nt':
+        # set Windows terminal to the correct size and title
+        call('title '+title,shell=True)
+        call('mode con: cols='+str(cols+1)+' lines='+str(rows+1),shell=True)
     for keyword in keywords:
-        if keyword.startswith('title='):
-            # get program title
-            title = keyword.split('=')
-            title = title[1]
-            if os.name == 'nt':
-                call('title '+title,shell=True)
-        elif keyword=='screen':
-            # initialize stuff we need for the screen
-            global screens; screens=[]
-            screenAnnounceArea() # sets area to centre
-        elif keyword.startswith('size '):
-            # get custom screen size in the format 'size cols rows'
-            size = keyword.split(' ')
-            cols = int(size[1])
-            rows = int(size[2])
-            if os.name == 'nt':
-                # set Windows terminal to the correct size
-                call('mode con: cols='+str(cols+1)+' lines='+str(rows+1),shell=True)
+        if keyword=='screen':
+            # initialize screen
+            global screens;screens=[]
+            screenAnnounceArea()
 
     # settings that everyone needs
     def defineSettings():
         global cwd
         cwd = os.getcwd() + '/'
         savefile =  cwd + title + '_save.dat'
+        errfile = cwd + title + '_error.log'
         global busy; busy=False
         # store stdin's file descriptor
         global stdinfd
@@ -204,10 +196,11 @@ def getStringInput(message=None):
 # safely exit the program
 def quit():
     if os.name!='nt':
-        # return terminal to the way it was
+        # make the terminal echo user input again
+        # if you somehow exit w/o this, the terminal will be temporarily f'd ;D
         global oldtcattr; global stdinfd
         termios.tcsetattr(stdinfd, termios.TCSADRAIN, oldtcattr)
-    raise SystemExit
+    raise SystemExit  # buh-bye!
 
 # a serious error occured!
 def chunderEverywhere(err='UnknownError'):
@@ -222,13 +215,20 @@ def chunderEverywhere(err='UnknownError'):
             character.upper()
         newstring+=character
     write(newstring)
-    #print(errors[err], file=errfile)
+    print(errors[err], file=errfile)
     quit()
+# this error handling is pathetic. it should be something raisable, not a func
 
 # clears the display
 def clear():
     if os.name == 'nt':
-        call('cls',shell=True)
+        # apparently this was the source of 90% of crashes on Windows
+        try:
+            call('cls',shell=True)
+            return True
+            # because cls is just that slow??
+        except KeyboardInterrupt:
+            return False
     else:
         call("clear",shell=True)
 
@@ -273,6 +273,18 @@ def load(savefile, label='saved'):
 
 def reverseRange(number):
     return range(number,-1,-1)
+
+# capitalizes first letter by default, or a specified letter
+def capitalize(string, index=0):
+    maxindex = len(string)-1
+    if index > maxindex or index < 0:
+        return string
+    elif index==maxindex:
+        return string[:index]+string[index].upper()
+    elif index==0:
+        return string[0].upper()+string[1:]
+    else:
+        return string[:index]+string[index].upper()+string[index+1:]
 
 # does everything
 def randomNumber(lower=0, upper=1):
@@ -413,20 +425,28 @@ def screenDraw(screenID, disableHistory=False):
     global busy
     while not busy:
         busy=True
+        # in Windows it flickers if we don't clear
+        # in Linux it flickers if we do :P
+        if os.name=='nt':
+            if not clear():
+                return False
         # don't let the user barf
         with PreventBarfing():
+            entirescreen=''
             for row in screen:
                 for cell in row:
-                        # write each cell in each row
-                        sys.stdout.write(cell)
+                    # write each cell in each row
+                    entirescreen+=cell
                 # write a linebreak after every row
-                sys.stdout.write('\n')
-                sys.stdout.flush()
+                entirescreen+='\n'
+            # draw the entire screen at once (reduces flicker on some machines)
+            sys.stdout.write(entirescreen)
+            sys.stdout.flush()
     busy=False
-    global announceY; announceY=1
     global history
     if not disableHistory:
         history.append(screenID)
+    return True
 
 # fill the whole screen or certain rows or columns with certain characters
 # screenFill(screenID, 'col 50', 'col 40', 'row 30', 'with $')
@@ -514,12 +534,137 @@ def screenColMove(screenID, col, newcol, bg=' '):
                 row[cell]=oldcol[cell]
 
 # moves a certain area of the screen
-# screenMove(screenID, 'cols=0-10', 'rows=0-10', 'x 6', 'y 6', 'bg=#')
+# screenAreaMove(screenID, cols=(0,10), rows=(0,10), x=6, y=6, bg='#')
 # ^-- moves a 10x10 area starting at 0x0 to start at 6x6
 # replaces any non-overlapping cells with bg or spaces if none
 # logically this should all be in a super screenMove() but I'm lazy right now
-def screenAreaMove(screenID, *keywords):
-    pointless=True
+def screenAreaMove(screenID, **keyword):
+    global screens; screen = screens[screenID]
+    # determine where the old area is
+    area = getArea(**keyword)
+
+    # read through the keywords
+    keywords = keyword.keys()
+    bg = ' '
+    if 'bg' in keywords:
+        bg = keyword['bg']
+    # take x and y from keywords
+    x=0; y=0; newcol=-1; newrow=-1
+    if 'x' in keywords:
+        x=keyword['x']
+    if 'y' in keywords:
+        y=keyword['y']
+
+    # get keywords for use by the new area - these are tuples
+    oldcols=(0,); oldrows=(0,)
+    if 'cols' in keywords and 'col' not in keywords:
+        oldcols = keyword['cols']
+    if 'rows' in keywords and 'row' not in keywords:
+        oldrows = keyword['rows']
+    if 'col' in keywords and 'row' not in keywords:
+        newcol = keyword['col'] # what
+    if 'row' in keywords and 'col' not in keywords:
+        newrow = keyword['row'] # wait no
+
+    # default -1 to the centre
+    if x==-1:
+        global cols
+        x=halfOf(cols)
+    if y==-1:
+        global rows
+        y=halfOf(rows)
+
+    difference = x-oldcols[0]
+    newcols=(x,oldcols[1]+difference)
+    difference = y-oldrows[0]
+    newrows=(y,oldrows[1]+difference)
+
+    # holy cow this code is a confusing mess. anyway...
+    # determine where the new area will be
+    newarea = getArea(cols=newcols, rows=newrows)
+
+    clipboard=[]
+    for coords in area:
+        x,y = coords
+        try:
+            row = screen[y]
+            cell = row[x]
+            clipboard.append(cell)
+            row[x]=bg
+        except IndexError:
+            # if we're outside the screen, whatever
+            continue
+    cellToCopy=0
+    for coords in newarea:
+        x,y = coords
+        try:
+            row = screen[y]
+            row[x]=clipboard[cellToCopy]
+        except IndexError:
+            # yeah, the same
+            continue
+        cellToCopy+=1
+
+# expects to receive ranges of cols & rows or single one & range of another
+def getArea(**keyword):
+    # create the lists we're going to need
+    affectedRows=[]; affectedCols=[]; affectedCells=[]
+    # get the keywords
+    keywords = keyword.keys()
+
+    # if a screenID is specified, fetch that screen
+    # this _should_ be because we have a 'return' keyword
+    if 'screen' in keywords:
+        screenID=keyword['screen']
+    if 'screenID' in keywords:
+        screenID=keyword['screen']
+    if 'screen' in keywords or 'screenID' in keywords:
+        global screens
+        screen = screens[screenID]
+    else:
+        screenID = -1
+
+    # figure out what our starting row and ending row is. same for columns
+    if 'cols' in keywords and 'col' not in keywords:
+        startcol, endcol = keyword['cols']
+    if 'rows' in keywords and 'row' not in keywords:
+        startrow, endrow = keyword['rows']
+    if 'row' in keywords and 'col' not in keywords:
+        startrow = keyword['row']
+        endrow = keyword['row']
+    if 'col' in keywords and 'row' not in keywords:
+        startcol = keywords['col']
+        endcol = keywords['col']
+    # be inclusive with ranges
+    endcol+=1; endrow+=1 # 2,5 returns 2-5
+
+    # create list of affected rows
+    for row in range(endrow-startrow):
+        affectedRows.append(row+startrow)
+    # create list of affected columns
+    for col in range(endcol-startcol):
+        affectedCols.append(col+startcol)
+    # using both lists, create list of affected cells
+    for row in affectedRows:
+        for col in affectedCols:
+            affectedCells.append((col,row))
+    # and this shouldn't matter but just in case:
+    del affectedRows; del affectedCols
+
+    # we know the area now, so how should we return it?
+    if 'return' in keywords and screenID > -1:
+        if keyword['return']=='area':
+            clipboard=[]
+            for coords in affectedCells:
+                x,y = coords
+                row = screen[y]
+                cell = row[x]
+                clipboard.append(cell)
+            return clipboard
+    elif 'return' in keywords and screenID==-1:
+        chunderEverywhere('NoScreenID')
+    # a list of x,y tuples
+    return affectedCells
 
 # similar to screenWrite except it remembers where to write and automatically
 # drops a line every time it's called, until the area is reset manually
@@ -568,7 +713,7 @@ def rippleAppend(theList, newItem):
             theList[i]=theList[i+1]
         except IndexError:
             # when there's no more indexes ahead, append our new item
-            theList.append(newItem)
+            theList[i]=newItem
     return theList
 
 if __name__=='__main__':

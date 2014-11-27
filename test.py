@@ -11,12 +11,13 @@ def construct(page, *keywords):
         tass.screenFill(screen, 'col 0', 'col '+str(width-1), 'row 0',\
         'row '+str(height-1), 'with #')
         # could be more readable if you used multiple lines, it's up to you
-        tass.screenAnnounce(screen, 'Tassaron\'s Tiny Screen Library',\
-        'Prepare to be Somewhat Amazed', 2)
+        tass.screenAnnounceArea(-1,3) # start announcing at x=centre, y=3
+        tass.screenAnnounce(screen, 'Tassaron\'s Somewhat Satisfactory Screen Simplifier',\
+        'Prepare to be Somewhat Satisfied', 2)
         tass.screenAnnounce(screen, 3, '1) Demonstrate Everything',\
         '2) Screensaver','3) Walk Around','4) Toggle Borders','5) Test Canvas',\
         '6) Melt Down',2,'9) Quit')
-        tass.screenWrite(screen,11,21,'Wowzer~!')
+        tass.screenWrite(screen,11,height-5,'Wowzer~!')
         # personally I like passing a few lines at once
         # We haven't drawn the main menu, just created it in memory.
 
@@ -109,14 +110,20 @@ def do(page, screen, *keywords):
             construct('canvas')
         elif ch==6:
             # iterate as many times as there are rows
-            for _ in range(height-1):
+            for i in range(height):
+                '''
                 # iterate over the rows of the screen
                 for y in tass.reverseRange(height-2):
                     # move each row one row down
                     tass.screenRowMove(screen, y, y+1) #move each row one row down
-                tass.screenDraw(screen)
-                if not tass.sleep(50):
+                '''
+                # move entire screen, starting at the row we're on, down by 1
+                tass.screenAreaMove(screen,cols=(0,width),rows=(i,height),y=i+1)
+                if not tass.screenDraw(screen):
                     construct('mainmenu')
+                if not tass.sleep():
+                    construct('mainmenu')
+            # once done animating, show the last screen
             do('transition',screen)
         elif ch==9:
             construct('goodbye')
@@ -164,9 +171,10 @@ def do(page, screen, *keywords):
             # write frame number in the corner
             frame = str(i)+'/'+str(ch)
             tass.screenWrite(screen, (width-len(frame)), height-1,frame)
-            tass.screenDraw(screen)
-            # sleep returns false if user terminates it
-            if not tass.sleep():
+            # these return false if the user interrupts them
+            if not tass.screenDraw(screen):
+                construct('mainmenu')
+            if not tass.sleep(150):
                 construct('mainmenu')
         construct('mainmenu')
 
@@ -192,6 +200,7 @@ def do(page, screen, *keywords):
         if firsttimewalking:
             x=tass.halfOf(width)
             y=tass.halfOf(height)
+            tass.screenAnnounceArea()
             tass.screenAnnounce(screen, 2,'use ASWD to move around',\
             'C for crosshairs',10,'B to go back')
             firsttimewalking=False
@@ -234,7 +243,7 @@ def do(page, screen, *keywords):
         if ch=="quit":
             construct('mainmenu')
         copy = ch
-        ch = 'tass.screen'+copy[0].upper()+copy[1:]
+        ch = 'tass.screen'+tass.capitalize(copy)
         eval(ch)
         do('canvas',screen)
 
@@ -250,9 +259,9 @@ def do(page, screen, *keywords):
 
 if __name__ == '__main__':
     # initialize program
-    global width;global height
-    width = 79; height = 40 # cols, rows : x, y      'size 79 23'
-    tass.init('title=Screen Demo Program', 'screen', 'size '+str(width)+' '+str(height))
+    global width; global height
+    width = 79; height = 40
+    tass.init('Somewhat Satisfactory Screen Simplifier Demo', width, height, 'screen')
 
     # a wild ride
     global borders; borders=True
