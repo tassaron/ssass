@@ -19,6 +19,7 @@ commands to draw on it.
 
 This is mainly a place for experiments. Constructive criticism is super welcome.
 Follow me on Twitter: http://www.twitter.com/tassaron
+The "tassaron" account on Github is also me. I lost the password.
 
 -=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=-
 TODO:
