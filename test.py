@@ -1,40 +1,50 @@
 #!/usr/bin/python3
 ''' Test Program by tassaron '''
-import tass
-# start reading at main (the last section)
+
+from tass import *
+
+Width_ = 80; Height_ = 40
+
+def makeBorders(ch):
+    construction.column(0); construction.fill(ch)
+    construction.column(Width_-1); construction.fill(ch)
+    construction.row(0); construction.fill(ch)
+    construction.row(Height_-1); construction.fill(ch)
 
 def construct(page, *keywords):
-    screen = tass.screenInit()
+    construction = screen()
 
     if page=='mainmenu':
         #draw borders
-        tass.screenFill(screen, 'col 0', 'col '+str(width-1), 'row 0',\
-        'row '+str(height-1), 'with #')
-        # could be more readable if you used multiple lines, it's up to you
-        tass.screenAnnounceArea(-1,3) # start announcing at x=centre, y=3
-        tass.screenAnnounce(screen, 'Tassaron\'s Somewhat Satisfactory Screen Simplifier',\
+        construction.column(0); construction.fill('#')
+        construction.row(0); construction.fill('#')
+        construction.column(Width_); construction.fill('#')
+        construction.row(Height_); construction.fill('#')
+
+        # start announcing at x=centre, y=3
+        construction.setAnnouncementArea('centre',3)
+        construction.announce('Tassaron\'s Somewhat Satisfactory Screen Simplifier',\
         'Prepare to be Somewhat Satisfied', 2)
-        tass.screenAnnounce(screen, 3, '1) Demonstrate Everything',\
-        '2) Screensaver','3) Walk Around','4) Toggle Borders','5) Test Canvas',\
-        '6) Melt Down',2,'9) Quit')
-        tass.screenWrite(screen,11,height-5,'Wowzer~!')
-        # personally I like passing a few lines at once
+        construction.announce(3, '1) Demonstrate Everything',\
+        '2) Constructionsaver','3) Walk Around','4) Toggle Borders','5) Test Canvas',\
+        '6) Melt Down','7) Show Axis Labels',1,'9) Quit')
+        construction.cell(11,Height_-5); construction.write('Wowzer~!')
         # We haven't drawn the main menu, just created it in memory.
 
 
     elif page=='goodbye':
-        tass.screenAnnounceArea(-1,8)
-        tass.screenAnnounce(screen, 'See ya later alligator.',1, 'Press R to replay.')
-        tass.screenAnnounce(screen, 'B goes back to the main menu')
+        construction.setAnnouncementArea('centre',8)
+        construction.announce('See ya later alligator.',1, 'Press R to replay.')
+        construction.announce('B goes back to the main menu')
         # Still haven't drawn anything
 
 
     elif page=='demo':
-        tass.screenAnnounceArea() #reset
-        tass.screenAnnounce(screen, 6, "Enter some things.")
-        tass.screenDraw(screen)
-        # we draw the screen with that text...
-        tass.screenAnnounce(screen, 7, "Enter more things :O")
+        construction.setAnnouncementArea() #reset
+        construction.announce(6, "Enter some things.")
+        construction.paint()
+        # we draw the construction with that text...
+        construction.announce(7, "Enter more things :O")
         # and prepare this, but don't draw it yet
         announcements = []
         totalannouncements=0
@@ -42,52 +52,52 @@ def construct(page, *keywords):
         while totalannouncements<15:
             # after 4 announcements, start counting down how many more to enter
             if totalannouncements>4:
-                tass.screenAnnounceArea()
-                tass.screenAnnounce(screen, 9, 'Enter ' + str(14-totalannouncements) + \
+                construction.setAnnouncementArea()
+                construction.announce(9, 'Enter ' + str(14-totalannouncements) + \
                 ' more things...')
             # after 8, obviously...
             if totalannouncements>8:
-                tass.screenAnnounce(screen, 2, 'Your things are in a list',\
+                construction.announce(2, 'Your things are in a list',\
                 'with a limited length!')
             # get character input from the user
-            ch = tass.getInput('type char')
+            ch = getInput('type char')
             # set the announcements area to the corner
-            tass.screenAnnounceArea(1,18)
+            construction.setAnnouncementArea(1,18)
             # only show five announcements at a time
             if len(announcements)<5:
                 announcements.append(ch)
             else:
                 # ripple append limits the list to the current length by pushing
                 # everything one index back before adding a new item
-                announcements = tass.rippleAppend(announcements,ch)
+                announcements = rippleAppend(announcements,ch)
             for announcement in announcements:
-                tass.screenAnnounce(screen, announcement)
+                construction.announce(announcement)
             totalannouncements+=1
-            tass.screenDraw(screen)
+            construction.paint()
             # then leave and do the next part in do()
 
     # CONSTRUCT DEMO2
     elif page=='demo2':
-        tass.screenAnnounceArea(-1,8)
-        tass.screenAnnounce(screen,'Uhhhhhhhh','i havent done anything else')
+        construction.setAnnouncementArea('centre',8)
+        construction.announce('Uhhhhhhhh','i havent done anything else')
 
     # CONSTRUCT CANVAS
     elif page=='canvas':
-        tass.screenAnnounceArea()
-        tass.screenAnnounce(screen,'type something to be evaluated',\
-        'write(screen,x,y,"message","message",etc)',\
-        'anything that starts with tass.screen','type \'quit\' to leave')
+        construction.setAnnouncementArea()
+        construction.announce('type something to be evaluated',\
+        'write("message","message",etc)',\
+        'anything that starts with construction.','type \'quit\' to leave')
 
 
-    do(page, screen, keywords)
+    do(page, construction, keywords)
 
-def do(page, screen, *keywords):
-    global width; global height; global x; global y
+def do(page, construction, *keywords):
+    global x; global y
     global crosshairs; global firsttimewalking; global borders
 
     if page=='mainmenu':
-        tass.screenDraw(screen)
-        ch = tass.getInput('type int','valid 1 2 3 4 5 6 9')
+        construction.paint()
+        ch = getInput('type int','valid 1 2 3 4 5 6 7 9')
         # check input
         if ch==1:
             construct('demo')
@@ -99,50 +109,48 @@ def do(page, screen, *keywords):
         elif ch==4:
             if borders:
                 borders=False
-                tass.screenFill(screen, 'col 0', 'col '+str(width-1), 'row 0',\
-                'row '+str(height-1)) #clear borders
+                # clear the borders
+                makeBorders(' ')
             else:
                 borders=True
-                tass.screenFill(screen, 'col 0', 'col '+str(width-1), 'row 0',\
-                'row '+str(height-1), 'with #')
-            do('mainmenu',screen)
+                makeBorders('#')
+            do('mainmenu',construction)
         elif ch==5:
             construct('canvas')
         elif ch==6:
             # iterate as many times as there are rows
-            for i in range(height):
-                '''
-                # iterate over the rows of the screen
-                for y in tass.reverseRange(height-2):
-                    # move each row one row down
-                    tass.screenRowMove(screen, y, y+1) #move each row one row down
-                '''
+            for i in range(Height_):
                 # move entire screen, starting at the row we're on, down by 1
-                tass.screenAreaMove(screen,cols=(0,width),rows=(i,height),y=i+1)
-                if not tass.screenDraw(screen):
+                construction.area(cols=(0,Width_),rows=(i,Height_))
+                construction.move(x=0,y=i+1)
+                if not construction.paint():
                     construct('mainmenu')
-                if not tass.sleep():
+                if not sleep():
                     construct('mainmenu')
             # once done animating, show the last screen
-            do('transition',screen)
+            do('transition',construction)
+        elif ch==7:
+            construction.showAxisLabels()
+            pause() # ehhh
+            do('mainmenu',construction)
         elif ch==9:
             construct('goodbye')
         # dan's gonna say I found a way to use goto in Python
 
 
     elif page=='demo':
-        screen = tass.screenInit()
-        tass.screenAnnounceArea()
-        tass.screenAnnounce(screen, 17, 'What do you think?', '1) It was good',\
+        construction = screen()
+        construction.setAnnouncementArea()
+        construction.announce(17, 'What do you think?', '1) It was good',\
         '2) Back to mainmenu', '3) Quit now!','9) I want to see more')
-        tass.screenDraw(screen)
-        ch = tass.getInput('type int','valid 1 2 3 9')
+        construction.paint()
+        ch = getInput('type int','valid 1 2 3 9')
         if ch==1:
-            snapshot = tass.takeSnapshot(screen)
-            tass.screenFill(screen) #clear
-            tass.screenAnnounce(screen,'thanks')
-            tass.screenDraw(screen)
-            tass.pause()
+            snapshot = construction.takeSnapshot()
+            construction.everything(); construction.fill() #clear
+            construction.announce('thanks')
+            construction.paint()
+            pause()
             do('demo',snapshot)
         elif ch==2:
             construct('mainmenu')
@@ -153,38 +161,38 @@ def do(page, screen, *keywords):
 
 
     elif page=='demo2':
-        tass.screenDraw(screen)
-        tass.pause()
+        construction.paint()
+        pause()
         construct('mainmenu')
 
     elif page=='screensaver':
         words = ['poo','fart','smell','bark','lol']
-        tass.screenAnnounceArea() # reset to centre top
-        tass.screenAnnounce(screen,'It\'ll stop on its own',\
+        construction.setAnnouncementArea() # reset to centre top
+        construction.announce('It\'ll stop on its own',\
         'but you can use ctrl+c to stop it manually')
-        ch = tass.randomNumber(100,200)
+        ch = randomNumber(100,200)
         for i in range(ch):
-            message = tass.randomChoice(words)
-            x = tass.randomNumber(0,width-1)
-            y = tass.randomNumber(0,height-1)
-            tass.screenWrite(screen, x, y, message)
+            message = randomChoice(words)
+            x = randomNumber(0,Width_-1)
+            y = randomNumber(0,Height_-1)
+            construction.cell(x, y); construction.write(message)
             # write frame number in the corner
             frame = str(i)+'/'+str(ch)
-            tass.screenWrite(screen, (width-len(frame)), height-1,frame)
+            construction.cell((Width_-len(frame)-1), Height_-1); construction.write(frame)
             # these return false if the user interrupts them
-            if not tass.screenDraw(screen):
+            if not construction.paint():
                 construct('mainmenu')
-            if not tass.sleep(150):
+            if not sleep(150):
                 construct('mainmenu')
         construct('mainmenu')
 
 
     elif page=='goodbye':
-        tass.screenDraw(screen)
-        ch = tass.getInput('type char')
+        construction.paint()
+        ch = getInput('type char')
         if ch=='r':
-            tass.replay()
-            tass.pause()
+            replay()
+            pause()
         elif ch=='b':
             construct('mainmenu')
         else:
@@ -193,37 +201,38 @@ def do(page, screen, *keywords):
 
     elif page=='walk':
         # fill screen with dots
-        tass.screenFill(screen,'with .')
+        construction.everything(); construction.fill('.')
         if crosshairs:
             # empty row and col with player
-            tass.screenFill(screen,'col '+str(x),'row '+str(y))
+            construction.column(x); construction.fill()
+            construction.row(y); construction.fill()
         if firsttimewalking:
-            x=tass.halfOf(width)
-            y=tass.halfOf(height)
-            tass.screenAnnounceArea()
-            tass.screenAnnounce(screen, 2,'use ASWD to move around',\
+            x=halfOf(Width_)
+            y=halfOf(Height_)
+            construction.setAnnouncementArea()
+            construction.announce(2,'use ASWD to move around',\
             'C for crosshairs',10,'B to go back')
             firsttimewalking=False
         # draw player at x and y
-        tass.screenWrite(screen,x,y,'@')
-        # actually draw the screen
-        tass.screenDraw(screen)
-        ch = tass.getInput('type char','valid a w s d c b')
+        construction.cell(x,y); construction.write('@')
+        # actually draw the construction
+        construction.paint()
+        ch = getInput('type char','valid a w s d c b')
         if ch=='a':   # left
             if x>0:
-                tass.screenCellMove(screen, x,y,x-1,y)
+                construction.cell(x,y); construction.move(x-1,y)
                 x-=1
         elif ch=='w': # up
             if y>0:
-                tass.screenCellMove(screen, x,y,x,y-1)
+                construction.cell(x,y); construction.move(x,y-1)
                 y-=1
         elif ch=='s': # down
-            if y<height-1:
-                tass.screenCellMove(screen, x,y,x,y+1)
+            if y<Height_-1:
+                construction.cell(x,y); construction.move(x,y+1)
                 y+=1
         elif ch=='d': # right
-            if x<width-1:
-                tass.screenCellMove(screen, x,y,x+1,y)
+            if x<Width_-1:
+                construction.cell(x,y); construction.move(x+1,y)
                 x+=1
         elif ch=='b': # GO BACK
             construct('mainmenu')
@@ -233,35 +242,34 @@ def do(page, screen, *keywords):
             else:
                 crosshairs=True
         # we can skip the constructor this time
-        do('walk',screen)
+        do('walk',construction)
         # this way we overwrite the walk screen instead of making tons of them
 
 
     elif page=='canvas':
-        tass.screenDraw(screen)
-        ch = tass.getStringInput()
+        construction.paint()
+        ch = getStringInput()
         if ch=="quit":
             construct('mainmenu')
         copy = ch
-        ch = 'tass.screen'+tass.capitalize(copy)
+        ch = 'construction.'+copy
         eval(ch)
-        do('canvas',screen)
+        do('canvas',construction)
 
 
     elif page=='transition':
         # the screen will slowly scroll downwards, and then...
-        tass.screenFill(screen) # clear the screen
-        tass.screenWrite(screen,-1,-1,'Press any key to reset.')
-        tass.screenDraw(screen) # draw the empty screen
-        tass.pause() # lol ;)
+        construction.everything(); construction.fill() # clear the construction
+        construction.cell('centre','centre'); construction.write('Press any key to reset.')
+        construction.paint() # draw the empty construction
+        pause() # lol ;)
         construct('mainmenu')
 
 
 if __name__ == '__main__':
     # initialize program
-    global width; global height
-    width = 79; height = 40
-    tass.init('Somewhat Satisfactory Screen Simplifier Demo', width, height, 'screen')
+    init('Somewhat Satisfactory Screen Simplifier Demo', width=Width_,\
+        height=Height_,forceSize=True,beQuiet=True)
 
     # a wild ride
     global borders; borders=True
