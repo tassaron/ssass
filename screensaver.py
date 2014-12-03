@@ -11,12 +11,11 @@ from sys import argv
 from tass import *
 import os
 
-def rndCoords():
-    start = randomNumber(1,Width_-1)
-    cols=(start+randomNumber(1,4),start+randomNumber(5,6))
-    start = randomNumber(1,Height_-1)
-    rows=(start+randomNumber(1,4),start+randomNumber(5,6))
-    return cols, rows
+def spamSmilies(number):
+    for _ in range(number):
+        rndX=randomNumber(1,Width_-2); rndY=randomNumber(1,Height_-2)
+        global tracker; tracker += rndX+rndY
+        page.cell(rndX,rndY); page.write(':)')
 
 def addBorders():
     page.line(row=Height_-1) # bottom row
@@ -30,36 +29,53 @@ def addBorders():
     page.cell(0,0); page.write(' ')
     page.cell(Width_-1,0); page.write(' ')
 
-def dumptrackertofile(savefile, flickeryThing):
-    with open(savefile, 'a', encoding='utf-8') as savefile:
-        try:
-            print(flickeryThing, file=savefile)
-        except IOError:
-            print("error saving data :(")
+def dumptrackertofile(savefile, flickeryThing, timestamp):
+    if tracker > 1000000:
+        endDate, endTime = getTimestamp('tuple')
+        # try to centre the stuff so it's easy to read
+        spaces = 34; spaces -= len(flickeryThing)
+        spaces = halfOf(spaces); spaces = spaces*' '
+        with open(savefile, 'a', encoding='utf-8') as savefile:
+            try:
+                print(timestamp+spaces+flickeryThing+spaces+endTime+' '+endDate, file=savefile)
+            except IOError:
+                print("error saving data :(")
             quit()
 
 def giveMessage():
     global msgNum
     if msgNum==-1:
         page.cell('centre','centre')
-        page.write('Tassaron\'s Somewhat Satisfactory Screensaver',\
+        page.write(' Tassaron\'s Somewhat Satisfactory Screensaver',\
                    'Prepare to be somewhat satisfied! :O')
     else:
-        page.area(rows=(13,Height_-14),cols=(19,Width_-19))
+        page.area(rows=(11,Height_-11),cols=(17,Width_-17))
         page.fill() # empty out area between the lines
         page.cell('center','center')
-        page.write(messages[msgNum])
-    page.line(row=12); page.fill('>')
-    page.line(row=Height_-12); page.fill('<')
-    page.line(col=18); page.fill('^')
-    page.line(col=Width_-18); page.fill('v')
+        if randomNumber(1,5)==5:
+            page.write(messages[msgNum])
+        else:
+            string=''
+            for message in messages:
+                if randomNumber(1,3)==3:
+                    message = message.split()
+                    string+=message[randomNumber(0,len(message)-1)]+' '
+            if len(string)<20:
+                string+='in my mouth'
+            page.write(string)
+    page.line(row=10); page.fill('>')
+    page.line(row=Height_-10); page.fill('<')
+    page.line(col=16); page.fill('^')
+    page.line(col=Width_-16); page.fill('v')
+    addBorders()
+    page.paint()
+    if not sleep(delay):
+        quit()
 
     rndX=randomNumber(1,Width_-2); rndY=randomNumber(1,Height_-2)
     page.cell(rndX,rndY); page.write(':)')
     if msgNum != -1:
-        for _ in range(5):
-            rndX=randomNumber(1,Width_-2); rndY=randomNumber(1,Height_-2)
-            page.cell(rndX,rndY); page.write(':)')
+        spamSmilies(15)
     else:
         # select :) we just printed
         page.line(cols=(rndX,rndX+1),row=rndY)
@@ -78,17 +94,31 @@ def giveMessage():
 if __name__=='__main__':
     # because it's fun to see how long I've run this
     savefile = os.getcwd() + '/trackers.dat'
+    date, time = getTimestamp('tuple')
+    timestamp = date+' '+time
 
     # start at my fullscreen size
     Width_=150; Height_=41
     speed=13; delay=0; paused=False # recommended :P
-    msgNum=-1; messages = ['May the force be with you', 'Eat olives every day',
-        'Don\'t forget to clean behind your ears', 'An apple a day is bad for you',
-        'Drink more beer, do more dishes', 'who even cares about hamburgers',
-        'Nipples are sometimes shaped like stars', 'Why are you reading this?',
-        'dicks dicks dicks dicks dicks dicks', 'What will happen will happen',
-        'When did you stop thinking of your parents\' house as your own?',
-        'don\'t feed the memes', '*anonymous phone call* ;O']
+    msgNum=-1; messages = ['may the fonzie be with you', 'eat olives every day',
+        'clean behind your ears', 'an apple a day is bad for you probably',
+        'drink more beer, do more dishes', 'who even cares about hamburgers',
+        'nipples are sometimes shaped like stars', 'why are you reading this?',
+        'dicks dicks dicks dicks dicks dicks', 'what will happen will happen',
+        'when did you stop thinking of your parents\' house as your own?',
+        'don\'t feed the memes', '*anonymous phone call* ;O','yummy yummy cake',
+        'don\'t worry, clowns will eat you', 'nine dot nine', 'boobs are cool',
+        'hungry hungry hippos strike again','tigers and bears, oh my!',
+        'call all your poor nibling siblings', 'your tongue will get stuck',
+        'don\'tcha put it in your mouth', 'don\'tcha stuff it in your face',
+        'it looks good to eat', 'powerful vacuums suck', 'guess what I\'m thinking',
+        'what does cat food tastes like?']
+
+    # random junk to scribble on the screen
+    letters = 'abcdefghijklmnopqrstuvwxyzxxxxxBBBBBBBBBBBBABCDEFGHIJKLNOPQSTUVWXYZ'
+    numbers = '00000001111111129$%%%@#!@!!@#$^*&--==---=-=********##############'
+    words = ['Brianna','sister','beautiful','symmetrical','patterns','olives','farts','tassaron','love love',\
+            'Jade Jade','Carliii','Nathanael','dick','dicks','big butts','dancers','cyan','eyeballs','boobs','love love','love love']
 
     # if there are arguments...
     if len(argv) > 1:
@@ -105,9 +135,11 @@ if __name__=='__main__':
             elif argv[1]=='big':
                 Width_=150; Height_=41
             elif argv[1]=='old':
-                Width_=80; Height_=40
+                Width_=80; Height_=41
             elif argv[1]=='tall':
                 Height_=69
+            elif argv[1]=='square':
+                Width_=32; Height_=32
     if len(argv) > 2:
         # controls how often the screen is painted
         try:
@@ -131,20 +163,15 @@ if __name__=='__main__':
 
     init('Screensaver',width=Width_,height=Height_,forceSize=True,beQuiet=True)
 
-    # random junk to scribble on the screen
-    letters = 'abcdefghijklmnopqrstuvwxyzxxxxxBBBBBBBBBBBBABCDEFGHIJKLNOPQSTUVWXYZ'
-    numbers = '00000001111111129$%%%@#!@!!@#$^*&--==---=-=********##############'
-    words = ['Bri','Hope','zzzzzzz','xyz',':)','olive','fart','tassaron','love',\
-            'Jade','Carli','Nate','dicks','butt']
-
     iters=50
     page = screen()
     giveMessage()
 
     framesCreated=0
     framesDrawn=0
-    tracker=0
+    global tracker; tracker=0
     message=0
+    nextmessage = randomNumber(60,120)
 
     while True:
         try:
@@ -152,9 +179,9 @@ if __name__=='__main__':
             tracker+=i
             addBorders()
 
-            # make the flickery things :3
+            # make the flickery thing :3
             # add one because these are incremented after for convenience
-            flickeryThing = str(framesDrawn+1)+'/'+str(framesCreated+1)+'/'+str(tracker)
+            flickeryThing= str(framesDrawn+1)+'/'+str(framesCreated+1)+'/'+str(tracker)
 
             # change positions of flickery things every now and then
             if framesDrawn % 30 == 0:
@@ -169,16 +196,16 @@ if __name__=='__main__':
             page.cell(flickerX,topBotY);
             page.write(flickeryThing)
             page.cell(topBotX,flickerY)
-            page.write(flickeryThing, direction='down')
+            page.write(timestamp, direction='down')
 
-            speed_=randomNumber(halfOf(speed),speed)
+            speed_=randomNumber(1,speed)
             tracker+=speed_
 
-            if i % speed == 0:
+            if i % speed_ == 0:
                 if framesCreated==0 or framesCreated>29:
                     page.paint()
                     if not sleep(delay):
-                        dumptrackertofile(savefile,flickeryThing)
+                        dumptrackertofile(savefile,flickeryThing,timestamp)
                         quit()
                     if paused:
                         pause()
@@ -191,21 +218,11 @@ if __name__=='__main__':
 
             x = randomNumber(0,Width_-1)
             y = randomNumber(0,Height_-1)
-            if i == 7 or i == 25:
+            if i == 7 or i == 24 or i == 31:
                 # move random area to another random area
                 # 1 and -2 to compensate for the borders
-                height = [randomNumber(1,Height_-2), randomNumber(1,Height_-2)]
-                width  = [randomNumber(1,Width_-2),   randomNumber(1,Width_-2)]
-                height.sort(); width.sort()
-                # don't let the areas get TOO big
-                if height[1]-height[0] > 12:
-                    height[1] = height[0]+12
-                if width[1]-width[0] > 16:
-                    width[1] = width[0]+16
-                tracker+=height[0];tracker+=height[1]
-                tracker+=width[0];tracker+=width[1]
-                tuple(height); tuple(width)
-                page.area(rows=(height),cols=(width))
+                cols, rows = randomArea(18, 16, cols=(1,Width_-2), rows=(1, Height_-2))
+                page.area(cols=cols,rows=rows)
                 if i == 7:
                     page.move(x=x,y=y,bg=movebg)
                 else:
@@ -219,6 +236,16 @@ if __name__=='__main__':
                 else:
                     page.move(x=rndX, y=rndY)
                 tracker+=rndX+rndY
+            elif i == 16:
+                # draw random rectangle
+                cols, rows = randomArea(18, 16, cols=(1,Width_-2), rows=(1, Height_-2))
+                page.area(cols=cols,rows=rows); page.fill() # empty the space
+                page.line(row=rows[0],cols=cols); page.fill('_')
+                page.line(row=rows[1],cols=cols); page.fill('_')
+                page.line(col=cols[0],rows=rows); page.fill('|')
+                page.line(col=cols[1],rows=rows); page.fill('|')
+                page.cell(cols[0],rows[0]); page.write(' ')
+                page.cell(cols[1],rows[0]); page.write(' ')
             elif i == 35:
                 # draw arrows across somewhere
                 row = randomNumber(1,Height_-2)
@@ -226,7 +253,7 @@ if __name__=='__main__':
                 page.line(row=row)
                 direction = randomChoice(['>','<','><'])
                 page.fill(direction)
-            elif i == 15:
+            elif i == 15 or i == 16:
                 # draw arrows up and down somewhere
                 col = randomNumber(1,Width_-2)
                 tracker+=col
@@ -235,10 +262,30 @@ if __name__=='__main__':
                 page.fill(direction)
             elif i == 44 or i == 43:
                 # fill random area with random letters or numbers
-                cols, rows = rndCoords()
+                cols, rows = randomArea(8,6,cols=(1,Width_-1),rows=(1,Height_-1))
                 page.area(cols=cols,rows=rows)
                 choice = randomChoice([letters,numbers])
                 page.fill(choice)
+            elif i == 15 or i == 35:
+                spamSmilies(i)
+            elif i == 2 or i == 10 or i == 22:
+                # random replace sections of numbers with letters
+                # or entire screen of numbers with letters. or vice versa
+                rndNum = randomNumber(1,10)
+                tracker+=rndNum
+                if rndNum < 9:
+                    cols, rows = randomArea()
+                    page.area(cols=cols,rows=rows)
+                    if rndNum < 5:
+                        page.findReplace(numbers,letters)
+                    else:
+                        page.findReplace(letters,numbers)
+                else:
+                    page.everything()
+                    if rndNum==9:
+                        page.findReplace(numbers,letters)
+                    else:
+                        page.findReplace(letters,numbers)
             elif i % 2==0:
                 if speed < 15:
                     number = 3
@@ -272,10 +319,12 @@ if __name__=='__main__':
                 page.cell(x,y)
                 page.write(word)
 
-            if message == 30:
+            if message == nextmessage:
+                tracker+=nextmessage
+                nextmessage = randomNumber(60,120)
                 message=0
                 giveMessage()
 
         except KeyboardInterrupt:
-            dumptrackertofile(savefile,flickeryThing)
+            dumptrackertofile(savefile,flickeryThing,timestamp)
             quit()

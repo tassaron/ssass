@@ -78,22 +78,34 @@ def init(title='Defaultline Tittle',**keyword):
         Height_ = keyword['height']
         # shouldn't be specified if there's no screen being used, really
         global ScreenIndex; ScreenIndex=[]
-    if 'forceSize' not in keywords or 'forceSize' in keywords and keyword['forceSize']!=False:
-        if _OSenv == 'nt':
-            # set Windows terminal to the correct size
-            call('mode con: cols='+str(Width_+1)+' lines='+str(Height_+1),shell=True)
-            # they need +1 because Windows is quirky and needs extra space
-        elif _OSenv == 'other' and 'height' in keywords and 'beQuiet' not in keywords and keyword['beQuiet']!=True:
-            # in not-Windows, tell them to adjust their screen maybe?
-            # not sure if I could force this but it's not a huge deal
-            disp.clear()
-            # avoid using a screen bc I don't want this in the screenIDs
-            # IDEAL: though there should be a way to accomplish that w/ a screen...
-            disp.write('',halfOf(Height_)-1) # go down to the middle-ish
-            disp.write('You may want to adjust this window to',1,'centre')
-            disp.write('match the dimensions of the screen.',0,'centre')
-            pause()
-            disp.clear()
+
+        # think about forcing the screen size if height is defined
+        if 'forceSize' in keywords and keyword['forceSize']!=False:
+            forceSize = True
+            if _OSenv == 'other':
+                if 'beQuiet' in keywords and keyword['beQuiet']==True:
+                    beQuiet=True
+                else:
+                    beQuiet=False
+        else:
+            forceSize = False
+
+        if forceSize:
+            if _OSenv == 'nt':
+                # set Windows terminal to the correct size
+                call('mode con: cols='+str(Width_+1)+' lines='+str(Height_+1),shell=True)
+                # they need +1 because Windows is quirky and needs extra space
+            elif _OSenv == 'other' and not beQuiet:
+                # in not-Windows, tell them to adjust their screen maybe?
+                # not sure if I could force this but it's not a huge deal
+                disp.clear()
+                # avoid using a screen bc I don't want this in the screenIDs
+                # IDEAL: though there should be a way to accomplish that w/ a screen...
+                disp.write('',halfOf(Height_)-1) # go down to the middle-ish
+                disp.write('You may want to adjust this window to',1,'centre')
+                disp.write('match the dimensions of the screen.',0,'centre')
+                pause()
+                disp.clear()
 
 # stops user from barfing on the display while things are being drawn
 # totally stole this from my friend ninedotnine ;)
@@ -320,14 +332,95 @@ def capitalize(string, index=0):
         return string[:index]+string[index].upper()+string[index+1:]
 
 # halve a number without getting a float
-def halfOf(number):
+def halfOf(number,rounding='down'):
     number = number/2
-    number = math.floor(number)
+    if rounding=='down':
+        number = math.floor(number)
+    else:
+        number = math.ceil(number)
     return int(number)
+
+# give back a human-readable timestamp
+def getTimestamp(type_='tuple'):
+    import time
+    localtime = time.localtime() # returns tuple of local time info
+    validTypes = ['tuple','table']
+
+    if type_ in validTypes:
+        # use 12-hour time
+        meridean = 'a'
+        hour = localtime[3]
+        if hour > 12:
+            hour-=12 # IDEAL: use correct term
+            meridean = 'p'
+
+        if type_=='tuple':  # d/m/y
+            date = str(localtime[2])+'/'+str(localtime[1])+'/'+str(localtime[0])
+
+            # add 0 to the minute when needed
+            minute = str(localtime[4])
+            if len(minute) < 2:
+                minute = '0'; minute+=str(localtime[4])
+
+            time = str(hour)+':'+minute+meridean+'m'
+            timestamp = date, time
+        elif type_=='table':
+            timestamp = {
+                "Year"      : localtime[0],
+                "Month"     : localtime[1],
+                "Day"       : localtime[2],
+                "Hour"      : hour,
+                "Minute"    : localtime[4],
+                "Meridean"  : meridean+'m'
+            }
+        return timestamp
+    else:
+        return 'Invalid Type'
+
+# returns tuple of cols and rows ( presumably to be passed into area() )
+# optional maxWidth/maxHeight defines maximum difference between cols/rows
+def randomArea(maxWidth=-1, maxHeight=-1, **keyword):
+    keywords = keyword.keys()
+
+    # here's one way of doing cols/rows without copy and pasting code
+    totalSize = [ Width_-1, Height_-1 ]
+    maxSize = [ maxWidth, maxHeight ]
+
+    for i in range(2):
+        # determine where to pick a starting coord
+        # IDEAL: should be better than this. doesn't really work
+        if 'cols' in keywords and i==0:
+            col1, col2 = keyword['cols']
+            start = randomNumber(col1, col2)
+        elif 'rows' in keywords and i==2:
+            row1, row2 = keyword['rows']
+            start = randomNumber(row1, row2)
+        else:
+            start = randomNumber(0, totalSize[i])
+
+        randomRange=[]
+        for _ in range(2):
+            if maxSize[i] != -1:
+                randomRange.append( randomNumber(0, maxSize[i]) )
+            else:
+                randomRange.append( randomNumber(0, totalSize[i]) )
+        randomRange.sort() # put them in order smallest > lowest
+
+        # if the bigger coord is off the screen, crop it at the edge
+        if randomRange[1] > totalSize[i]:
+            randomRange[1] = totalSize[i]
+
+        if i==0:
+            cols = ( start + randomRange[0], start + randomRange[1] )
+        else:
+            rows = ( start + randomRange[0], start + randomRange[1] )
+
+    return cols, rows
 
 # does everything
 def randomNumber(lower=0, upper=1):
-    return random.randint(lower,upper)
+    random_ = random.SystemRandom() # uses urandom when it can
+    return random_.randint(lower,upper)
 
 # choose one choice from a list of options
 def randomChoice(choices=['dog','cat']):
@@ -364,11 +457,11 @@ class disp:
             # apparently this was the source of 90% of crashes on Windows
             try:
                 call('cls',shell=True)
-                return True
                 # because cls is just that slow??
             except KeyboardInterrupt:
-                return False
+                pass # whatever
         else:
+            #call(["printf", "\033c"]) # maybe?
             call("clear",shell=True)
 
     # writes to the display. end is # of linebreaks. align is left, centre, right
@@ -468,7 +561,7 @@ class screen:
     def area(self, **keyword):
         self.action = 'area'
         # create the lists we're going to need
-        affectedRows=[]; affectedCols=[]; affectedCells=[]
+        affectedRows=[]; affectedCols=[]; selectedCells=[]
         # get the keywords
         keywords = keyword.keys()
 
@@ -487,27 +580,39 @@ class screen:
             endcol = keyword['col']
             if 'rows' not in keywords:
                 startrow = 0; endrow = Height_-1
+
         # be inclusive with ranges
         endcol+=1; endrow+=1 # 2,5 returns 2-5
 
         # create list of affected rows
-        for row in range(endrow-startrow):
-            affectedRows.append(row+startrow)
+        for row in range(endrow-startrow): # e.g., rows=(10,20)  == range(20-10)
+            if row+startrow < Height_: # runs through
+                affectedRows.append(row+startrow)
+
         # create list of affected columns
         for col in range(endcol-startcol):
-            affectedCols.append(col+startcol)
-        # using both lists, create list of affected cells
+            if col+startcol < Width_:
+                affectedCols.append(col+startcol)
+
+        # using both lists, create list of <s>affected</s> selected cells
         for row in affectedRows:
             for col in affectedCols:
-                affectedCells.append((col,row))
-        # a list of x,y tuples
-        self.affectedCells = affectedCells
+                selectedCells.append((col,row))
 
+        # set these back to normal so we can remember them properly
+        endcol-=1; endrow-=1
+        self.selectedArea = (startcol, endcol), (startrow, endrow)
+        # and the grand finale...
+        self.selectedCells = selectedCells # a list of x,y tuples
+
+    # select a "line"
+    # IDEAL: enforce that it be a line (one passed value must not be a range)
     def line(self,**keyword):
         self.area(**keyword)
 
+    # rows and columns are lines too but if you haven't guessed yet...
     def row(self,row):
-        if type(row)=='int':
+        if type(row)==int:
             self.line(row=row)
         elif row=='centre' or row=='center':
             self.line(row=halfOf(Height_))
@@ -516,8 +621,9 @@ class screen:
             self.line(row=self.y)
         self.action='row'
 
+    # ...I want my code to be readable, and these help a lot
     def column(self,col):
-        if type(col)=='int':
+        if type(col)==int:
             self.line(col=col)
         elif col=='centre' or col=='center':
             self.line(col=halfOf(Width_))
@@ -526,6 +632,7 @@ class screen:
             self.line(col=self.x)
         self.action='column'
 
+    # same excuse ;P
     def everything(self):
         self.area(cols=(0,Width_-1),rows=(0,Height_-1))
 
@@ -539,7 +646,7 @@ class screen:
         # use space if nothing was specified
         if len(characters)==0:
             characters.append(' ')
-        for coord in self.affectedCells:
+        for coord in self.selectedCells:
             x = coord[0]; y = coord[1]
             try:
                 row = self.screen[y]
@@ -560,25 +667,28 @@ class screen:
                 for message in messages:
                     x = int(self.x)
                     # if it's a number, drop so many rows
-                    if type(message)=='int':
+                    if type(message)==int:
                         y+=message
                     else:
                         # if centred, compensate for the length of the message
                         if self.centreX==True:
                             x -= halfOf(len(message))
-                        row = self.screen[y]
-                        for i in range(len(message)):
-                            try:
-                                row[x+i]=message[i]
-                            except IndexError:
-                                continue
-                        y+=1
+                        try:
+                            row = self.screen[y]
+                            for i in range(len(message)):
+                                try:
+                                    row[x+i]=message[i]
+                                except IndexError:
+                                    continue
+                            y+=1
+                        except IndexError:
+                            pass
             elif direction=='down':
                 x = int(self.x)
                 for message in messages:
                     y = int(self.y)
                     # if it's a number, drop so many... columns
-                    if type(message)=='int':
+                    if type(message)==int:
                         x+=message
                     else:
                         # if centred, compensate for the length of the message
@@ -592,26 +702,6 @@ class screen:
                             except IndexError:
                                 continue
                         x+=1
-
-    # what affectedCells would be if it started at x,y instead
-    def areaOffset(self,x,y):
-        # determine where the old area was
-        cols=[]; rows=[]
-        for coord in self.affectedCells:
-            cols.append(coord[0])
-            rows.append(coord[1])
-        cols.sort(); rows.sort()
-        oldcols = (cols[0],cols[-1])
-        oldrows = (rows[0],rows[-1])
-
-        # find the difference
-        difference = x-oldcols[0]
-        newcols=(x,oldcols[1]+difference)
-        difference = y-oldrows[0]
-        newrows=(y,oldrows[1]+difference)
-
-        # determine where the new area will be
-        self.area(cols=newcols, rows=newrows)
 
     # moves things to a new x and y, replacing the old area with ch
     def move(self,**keyword):
@@ -627,13 +717,16 @@ class screen:
                 row[self.x] = randomChoice(bg)
                 row = self.screen[keyword['y']]
                 row[keyword['x']] = clipboard
+
         elif self.action == 'column' or self.action == 'row' or self.action == 'area':
+            # copy the selected area to a clipboard
             clipboard=[]
-            for coord in self.affectedCells:
-                row = self.screen[coord[1]]
+            for coord in self.selectedCells:
+                x = coord[0]; y = coord[1]
                 # copy cell to clipboard before overwriting
-                clipboard.append(row[coord[0]])
-                row[coord[0]] = randomChoice(bg)
+                clipboard.append(self.screen[y][x])
+                self.screen[y][x] = randomChoice(bg)
+
             if self.action == 'column' and 'x' in keywords:
                 for i in range(Height_-1):
                     row = self.screen[i]
@@ -644,14 +737,29 @@ class screen:
                     row[i] = clipboard[i]
             elif self.action == 'area':
                 if 'x' in keywords and 'y' in keywords:
-                    # set self.affectedCells to the new area
-                    self.areaOffset(keyword['x'],keyword['y'])
+                    x = keyword['x']; y = keyword['y']
+                    # figure out where the new area is
+                    oldcols, oldrows = self.selectedArea
+
+                    # find the difference
+                    difference = x-oldcols[0]
+                    newcols=(x,oldcols[1]+difference)
+                    difference = y-oldrows[0]
+                    newrows=(y,oldrows[1]+difference)
+
+                    # determine where the new area will be
+                    self.area(cols=newcols, rows=newrows)
                     i=0
-                    for coord in self.affectedCells:
-                        if coord[0] > 0 and coord[0] < Width_ and coord[1] > 0 and coord[1] < Height_:
-                            row = self.screen[coord[1]]
-                            row[coord[0]] = clipboard[i]
-                            i+=1
+                    for coord in self.selectedCells:
+                        x = coord[0]; y = coord[1]
+                        try:
+                            if x > 0 and x < Width_-1 and y > 0 and y < Height_-1:
+                                self.screen[y][x] = clipboard[i]
+                        except IndexError:
+                            # I have absolutely no idea why this is necessary
+                            pass # seems to work despite inexplicable indexerrors
+                            # IDEAL: understand this thing
+                        i+=1
 
     # returns a true copy of the screen
     def takeSnapshot(self):
@@ -713,8 +821,7 @@ class screen:
             # in Windows it flickers if we don't clear
             # in Linux it flickers if we do :P
             if _OSenv=='nt':
-                if not disp.clear():
-                    return False
+                disp.clear()
             if paintAllAtOnce:
                 entirescreen = ''
                 for y in range(Height_):
@@ -737,22 +844,30 @@ class screen:
         busy=False
         return True
 
-    # replaces characters with other characters
-    # IDEAL: anything
-    def findReplace(cellToFind, replaceWith):
-        pass
+    # replaces characters with other characters within an area
+    def findReplace(self, thingToFind, replaceWith):
+        thingsToFind = listFromString(thingToFind)
+        thingsToReplaceWith = listFromString(replaceWith)
+        for coord in self.selectedCells:
+            x = coord[0]; y = coord[1]
+            try:
+                row = self.screen[y]
+                if row[x] in thingsToFind:
+                    row[x] = randomChoice(thingsToReplaceWith)
+            except IndexError:
+                pass
 
     def setAnnouncementArea(self, x=-1, y=-1):
         if x==-1:
             self.announceX=0
-        elif type(x)=='int':
+        elif type(x)==int:
             self.announceX=x
         elif x == 'centre' or x == 'center':
             self.announceX='centre'
 
         if y==-1:
             self.announceY=0
-        elif type(y)=='int':
+        elif type(y)==int:
             self.announceY=y
         elif y == 'centre' or y == 'center':
             self.announceY=halfOf(Height_-1)

@@ -25,6 +25,7 @@ The "tassaron" account on Github is also me. I lost the password.
 TODO:
 less messy handling of q/ctrl+c - it works really illogically atm
 better error handling
+get rid of all the Width_-1 stuff. shouldn't have to -1 so often
 color support
 sound support
 Linux support for arrow keys
