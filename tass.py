@@ -31,8 +31,6 @@ def init(title='Defaultline Tittle',**keyword):
     global Width_; Width_=80
     global Height_; Height_=40
     global busy; busy=False
-    global Bottom; Bottom=Height_-1
-    global Right; Right=Width_-1
 
     # give cmd the correct title
     if _OSenv=='nt':
@@ -106,6 +104,10 @@ def init(title='Defaultline Tittle',**keyword):
                 disp.write('match the dimensions of the screen.',0,'centre')
                 pause()
                 disp.clear()
+
+# quickly starts the program up for me to debug
+def tass():
+    init('Whatever Who Cares',height=40)
 
 # stops user from barfing on the display while things are being drawn
 # totally stole this from my friend ninedotnine ;)
@@ -302,6 +304,7 @@ def getInput(*keywords):
 def getStringInput(message=None):
     if message:
         dispWrite(message+' ',0)
+    # IDEAL: keep this exactly the same :D
     choice='tinkle'
     while choice=='tinkle':
         try:
@@ -310,14 +313,13 @@ def getStringInput(message=None):
             quit()
     return choice.strip()
 
+# a bit pointless but I like it
 def reverseRange(number):
     return range(number,-1,-1)
 
+# also a bit pointless but yeah
 def listFromString(string):
-    characters=[]
-    for i in range(len(string)):
-        characters.append(string[i])
-    return characters
+    return list(string)
 
 # capitalizes first letter by default, or a specified letter
 def capitalize(string, index=0):
@@ -419,13 +421,12 @@ def randomArea(maxWidth=-1, maxHeight=-1, **keyword):
 
 # does everything
 def randomNumber(lower=0, upper=1):
-    random_ = random.SystemRandom() # uses urandom when it can
-    return random_.randint(lower,upper)
+    return random.randint(lower,upper)
 
-# choose one choice from a list of options
+# choose one choice from a list
 def randomChoice(choices=['dog','cat']):
-    index = randomNumber(0,len(choices)-1)
-    return choices[index]
+    # IDEAL: add weighted choices at some point
+    return random.choice(choices)
 
 # keeps list the same length by deleting first item, sliding each item 1 index
 # back, and adding your new item to the end
@@ -505,24 +506,16 @@ class screen:
      int self.y
     bool self.centreY
     bool self.centreX
-    list self.area (x,y coords in tuples)
+    list self.selectedCells (x,y coords in tuples)
+    list self.selectedArea (col/row ranges in tuples)
     '''
 
     # create a new screen object, return the screenID
     def __init__(self):
         self.action='init'
-        # the screen is a list
-        self.screen=[]
-        # add as many rows as the height of the screen
-        for _ in range(Height_):
-            # the row is a list too
-            row=[]
-            for _ in range(Width_):
-                # add as many cells to the row as the width of the screen
-                row.append(' ')
-            # add the row to the screen
-            self.screen.append(row)
-        # the screen table now exists
+        # the screen is a list with (Height) # of (Width)-length rows
+        self.screen = [' ']*Height_
+        self.screen = [ [row]*Width_ for row in self.screen]
 
         # create announceX, announceY
         self.announceX=halfOf(Width_)
@@ -560,8 +553,6 @@ class screen:
     # expects to receive ranges of cols & rows or single one & range of another
     def area(self, **keyword):
         self.action = 'area'
-        # create the lists we're going to need
-        affectedRows=[]; affectedCols=[]; selectedCells=[]
         # get the keywords
         keywords = keyword.keys()
 
@@ -583,21 +574,27 @@ class screen:
 
         # be inclusive with ranges
         endcol+=1; endrow+=1 # 2,5 returns 2-5
-
-        # create list of affected rows
-        for row in range(endrow-startrow): # e.g., rows=(10,20)  == range(20-10)
-            if row+startrow < Height_: # runs through
-                affectedRows.append(row+startrow)
-
-        # create list of affected columns
-        for col in range(endcol-startcol):
-            if col+startcol < Width_:
-                affectedCols.append(col+startcol)
+        # make lists of the ranges we need to select
+        affectedRows = [ i for i in range(startrow, endrow) ]
+        affectedCols = [ i for i in range(startcol, endcol) ]
 
         # using both lists, create list of <s>affected</s> selected cells
-        for row in affectedRows:
-            for col in affectedCols:
-                selectedCells.append((col,row))
+        totalCols = range(len(affectedCols))
+        totalRows = len(affectedRows)
+        affectedCols = affectedCols * totalRows
+        selectedCells = []
+        for row in range(totalRows):
+            selectedCells.extend([ (affectedCols[col], affectedRows[row]) for col in totalCols])
+
+        '''
+        This is a bit faster than calling append() several thousand times was.
+        The speed difference kinda adds up if the screen is updating rapidly.
+
+        It would be trivial to only select existing cells here, but it'll be a
+        lot easier later to just select blindly for now because then we know
+        that two areas covering equal ranges are going to include an equal
+        number of cells.
+        '''
 
         # set these back to normal so we can remember them properly
         endcol-=1; endrow-=1
@@ -642,17 +639,23 @@ class screen:
         characters=[]
         for keyword in keywords:
             keyword = listFromString(keyword)
-            characters += list(keyword)
+            characters.extend(keyword)
         # use space if nothing was specified
         if len(characters)==0:
             characters.append(' ')
+
+        # IDEAL: find a way to randomize per cell
+        choice = randomChoice(characters)
         for coord in self.selectedCells:
             x = coord[0]; y = coord[1]
             try:
                 row = self.screen[y]
-                row[x] = randomChoice(characters)
+                try:
+                    row[x] = choice
+                except IndexError:
+                    continue # don't draw columns that are off-screen
             except IndexError:
-                pass
+                break # we're done if the current row is off-screen
 
     # writes text starting at cell
     def write(self, *messages, **keyword):
@@ -705,11 +708,13 @@ class screen:
 
     # moves things to a new x and y, replacing the old area with ch
     def move(self,**keyword):
-        bg = '   '
         keywords = keyword.keys()
+        # create list of potential background fills
+        bg = ' '
         if 'bg' in keywords:
             bg = listFromString(keyword['bg'])
 
+        # MOVING CELLS
         if self.action == 'cell':
             if 'x' in keywords and 'y' in keywords:
                 row = self.screen[self.y]
@@ -718,15 +723,15 @@ class screen:
                 row = self.screen[keyword['y']]
                 row[keyword['x']] = clipboard
 
+        # MOVING ANYTHING ELSE
         elif self.action == 'column' or self.action == 'row' or self.action == 'area':
-            # copy the selected area to a clipboard
-            clipboard=[]
-            for coord in self.selectedCells:
-                x = coord[0]; y = coord[1]
-                # copy cell to clipboard before overwriting
-                clipboard.append(self.screen[y][x])
-                self.screen[y][x] = randomChoice(bg)
+            # copy the selected area to a clipboard - make null entries for nonexistence
+            clipboard = [ None if Height_ < y < 0 or Width_ < x < 0 else self.screen[y][x]
+                          for (x, y) in self.selectedCells if x < Width_ and y < Height_ ]
+            # empty out the selected area with our bg choices
+            self.fill(bg)
 
+            # IDEAL: fix the other actions, not just area
             if self.action == 'column' and 'x' in keywords:
                 for i in range(Height_-1):
                     row = self.screen[i]
@@ -736,30 +741,50 @@ class screen:
                 for i in range(Width_-1):
                     row[i] = clipboard[i]
             elif self.action == 'area':
+                # IDEAL: behaviour if x or y isn't defined
                 if 'x' in keywords and 'y' in keywords:
-                    x = keyword['x']; y = keyword['y']
+                    newStartCol = keyword['x']; newStartRow = keyword['y']
                     # figure out where the new area is
                     oldcols, oldrows = self.selectedArea
 
                     # find the difference
-                    difference = x-oldcols[0]
-                    newcols=(x,oldcols[1]+difference)
-                    difference = y-oldrows[0]
-                    newrows=(y,oldrows[1]+difference)
+                    oldStartCol, oldEndCol = oldcols
+                    difference = newStartCol - oldStartCol
+                    newcols = [ newStartCol, oldEndCol + difference ]
+                    oldStartRow, oldEndRow = oldrows
+                    difference = newStartRow - oldStartRow
+                    newrows = [ newStartRow, oldEndRow + difference ]
+                    newcols.sort(); newrows.sort()
+                    tuple(newcols); tuple(newrows)
 
                     # determine where the new area will be
+                    oldSelectedCells = self.selectedCells
                     self.area(cols=newcols, rows=newrows)
-                    i=0
+
+                    # IDEAL: fix fill and move both doing this bg/fill thing...
+                    i=0; choice = randomChoice(bg)
                     for coord in self.selectedCells:
-                        x = coord[0]; y = coord[1]
+                        x, y = coord
                         try:
-                            if x > 0 and x < Width_-1 and y > 0 and y < Height_-1:
-                                self.screen[y][x] = clipboard[i]
+                            row = self.screen[y]
+                            try:
+                                if clipboard[i]:
+                                    row[x] = clipboard[i]
+                                else:
+                                    row[x] = choice
+                            except IndexError:
+                                i+=1
+                                continue
                         except IndexError:
-                            # I have absolutely no idea why this is necessary
-                            pass # seems to work despite inexplicable indexerrors
-                            # IDEAL: understand this thing
+                            # and we're done if the current row is off-screen
+                            break
                         i+=1
+
+                    # it's unintuitive to leave the new area selected
+                    self.selectedArea = oldcols, oldrows
+                    self.selectedCells = oldSelectedCells
+                    # although old behaviour was useful in some cases
+                    # IDEAL: old behaviour should be brought back another way
 
     # returns a true copy of the screen
     def takeSnapshot(self):
@@ -839,6 +864,7 @@ class screen:
                     for x in range(Width_):
                         cell = row[x]
                         sys.stdout.write(cell)
+                        sys.stdout.flush()
                     sys.stdout.write('\n')
             sys.stdout.flush()
         busy=False
@@ -848,12 +874,16 @@ class screen:
     def findReplace(self, thingToFind, replaceWith):
         thingsToFind = listFromString(thingToFind)
         thingsToReplaceWith = listFromString(replaceWith)
+        # it lags too much to randomly choose something for each cell
+        # so I'll just pick a few choices and hope no one notices. for now ;)
+        # IDEAL: do something better? (honestly doesn't matter much imo)
+        choices = [ randomChoice(thingsToReplaceWith) for _ in range(10) ]
         for coord in self.selectedCells:
             x = coord[0]; y = coord[1]
             try:
                 row = self.screen[y]
                 if row[x] in thingsToFind:
-                    row[x] = randomChoice(thingsToReplaceWith)
+                    row[x] = randomChoice(choices)
             except IndexError:
                 pass
 
