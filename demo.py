@@ -1,15 +1,15 @@
 #!/usr/bin/python3
-''' Test Program by tassaron '''
+''' Demo Program for SSASS by tassaron '''
 
-from tass import *
+from ssass import *
 
-Width_ = 80; Height_ = 40
+Width_ = 80; Height_ = 41
 
 def makeBorders(ch):
     construction.column(0); construction.fill(ch)
-    construction.column(Width_-1); construction.fill(ch)
+    construction.column(Width_); construction.fill(ch)
     construction.row(0); construction.fill(ch)
-    construction.row(Height_-1); construction.fill(ch)
+    construction.row(Height_); construction.fill(ch)
 
 def construct(page, *keywords):
     construction = screen()
@@ -268,7 +268,7 @@ def do(page, construction, *keywords):
 
 if __name__ == '__main__':
     # initialize program
-    init('Somewhat Satisfactory Screen Simplifier Demo', width=Width_,\
+    init('Somewhat Satisfactory ASCII Screen Simplifier Demo', width=Width_,\
         height=Height_,forceSize=True,beQuiet=True)
 
     # a wild ride

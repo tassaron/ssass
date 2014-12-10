@@ -2,13 +2,10 @@
 '''
 Somewhat Satisfactory Screensaver by tassaron
 Nov 28-Dec 1 2014
-
-accepts arguments:
-screensaver.py size speed pause
 '''
 
-from sys import argv
-from tass import *
+from ssass import *
+import argparse
 import os
 
 # lots of stuff in here is inefficient and goofy. I'm not as concerned about this
@@ -35,22 +32,23 @@ def drawHeart(x,y):
 def spamSmilies(number):
     for _ in range(number):
         rndX=randomNumber(1,Width_-2); rndY=randomNumber(1,Height_-2)
-        global tracker; tracker += rndX+rndY
         page.cell(rndX,rndY); page.write(':)')
 
 def addBorders():
-    page.line(row=Height_-1) # bottom row
+    page.row(Height_-1) # bottom row
     page.fill('_')
-    page.line(col=0,rows=(1,Height_-1)) # left side
+    page.area(col=0,rows=(1,Height_-1)) # left side
     page.fill('|')
-    page.line(col=Width_-1,rows=(1,Height_-1)) # right side
+    page.area(col=Width_-1,rows=(1,Height_-1)) # right side
     page.fill('|')
-    page.line(row=0,cols=(1,Width_-2))
+    page.area(row=0,cols=(1,Width_-2))
     page.fill('_') # top minus corners
     page.cell(0,0); page.write(' ')
     page.cell(Width_-1,0); page.write(' ')
 
-def dumptrackertofile(savefile, flickeryThing, timestamp):
+def dumptrackertofile(savefile, timestamp):
+    global tracker
+    global flickeryThing
     if tracker > 1000000:
         endDate, endTime = getTimestamp('tuple')
         # try to centre the stuff so it's easy to read
@@ -58,36 +56,41 @@ def dumptrackertofile(savefile, flickeryThing, timestamp):
         spaces = halfOf(spaces); spaces = spaces*' '
         with open(savefile, 'a', encoding='utf-8') as savefile:
             try:
-                print(timestamp+spaces+flickeryThing+spaces+endTime+' '+endDate, file=savefile)
+                print("%s%s%s%s%s %s" % (timestamp, spaces, flickeryThing,\
+                      spaces, endTime, endDate), file=savefile)
             except IOError:
                 print("error saving data :(")
             quit()
 
 def giveMessage():
-    global msgNum
+    global msgNum; global messages
     if msgNum==-1:
         page.cell('centre','centre')
-        page.write(' Tassaron\'s Somewhat Satisfactory Screensaver',\
+        if Debug:
+            page.write(' Tassaron\'s Somewhat Satisfactory Debug Mode',\
+                    'Prepare For Your Terminal To Break! :O')
+        else:
+            page.write(' Tassaron\'s Somewhat Satisfactory Screensaver',\
                    'Prepare to be somewhat satisfied! :O')
     else:
         page.area(rows=(11,Height_-11),cols=(17,Width_-17))
         page.fill() # empty out area between the lines
         page.cell('center','center')
-        if randomNumber(1,5)==5:
+        if randomNumber(0,4)==4:
             page.write(messages[msgNum])
         else:
             string=''
             for message in messages:
-                if randomNumber(1,3)==3:
+                if randomNumber(0,50)>20:
                     message = message.split()
                     string+=message[randomNumber(0,len(message)-1)]+' '
             if len(string)<20:
                 string+='in my mouth'
             page.write(string)
-    page.line(row=10); page.fill('>')
-    page.line(row=Height_-10); page.fill('<')
-    page.line(col=16); page.fill('^')
-    page.line(col=Width_-16); page.fill('v')
+    page.row(10); page.fill('>')
+    page.row(Height_-10); page.fill('<')
+    page.column(16); page.fill('^')
+    page.column(Width_-16); page.fill('v')
     addBorders()
     page.paint()
     if not sleep(delay):
@@ -99,7 +102,7 @@ def giveMessage():
         spamSmilies(15)
     else:
         # select :) we just printed
-        page.line(cols=(rndX,rndX+1),row=rndY)
+        page.area(cols=(rndX,rndX+1),row=rndY)
         for _ in range(25):
             newRndX=randomNumber(1,Width_-2); newRndY=randomNumber(1,Height_-2)
             # move it to new coords
@@ -108,146 +111,183 @@ def giveMessage():
             page.paint()
             if not sleep(delay):
                 quit()
+            if paused:
+                pause()
             # select :) at new coords
-            page.line(cols=(newRndX,newRndX+1),row=newRndY)
+            page.area(cols=(newRndX,newRndX+1),row=newRndY)
     msgNum=randomNumber(0,len(messages)-1)
 
-def main():
-    init('Screensaver',width=Width_,height=Height_,forceSize=True,beQuiet=True)
-    global page; page = screen()
+def getTime():
+    global currentTime
+    date, time = getTimestamp('tuple')
+    currentTime = '%s %s' % (date, time)
+    clock = threading.Timer(60.0,getTime)
+    clock.start()
 
-    iters=50
+def play(totalScreens, screenID=0):
+    global tracker; global bigTracker
+    global recycled; global flickeryThing
+
+    global currentTime
+    getTheTime = threading.Thread(target=getTime,daemon=True)
+    getTheTime.start()
+
+    # give introductory message
     giveMessage()
 
+    # screen statistics
     framesCreated=0
     framesDrawn=0
     lastFrameDrawn=0
     maxFrameDrop=speed*3
-    global tracker; tracker=0
     message=0
     nextmessage = randomNumber(60,120)
-    movebg= (' '*30) + letters
+    # default time for a certain animation to play
+    # measured in framesDrawn (thus unaffected by speed)
+    longevity = 250
 
     while True:
-        try:
-            i = randomNumber(1,50)
-            tracker+=i
-            addBorders()
 
-            # make the flickery thing :3
-            # add one because these are incremented after for convenience
-            flickeryThing= str(framesDrawn+1)+'/'+str(framesCreated+1)+'/'+str(tracker)
+        i = randomNumber(1,60)
+        addBorders()
 
-            # change positions of flickery things every now and then
-            if framesDrawn % 30 == 0:
-                flickerX = randomNumber(1,Width_-len(flickeryThing))
-                tracker+=flickerX
-                topBotY = randomChoice([0,Height_-1])
-                topBotX = randomChoice([0,Width_-1])
-                flickerY = randomNumber(1,Height_-len(flickeryThing))
-                tracker+=flickerY
+        # make the flickery things :3
+        tracker, bigTracker, recycled = getTrackers()
+        # add one because these are incremented after for convenience
+        frameTracker = 'drawn_%s___created_%s' % (str(framesDrawn+1),
+                        str(framesCreated+1))
+        flickeryThing= 'recycled_%s___sum_%s___total_%s' % (str(recycled),
+                        str(bigTracker), str(tracker))
 
-            # add flickery things on borders
-            page.cell(flickerX,topBotY);
-            page.write(flickeryThing)
-            page.cell(topBotX,flickerY)
-            page.write(timestamp, direction='down')
+        # change positions of flickery things every now and then
+        if framesDrawn % 30 == 0:
+            topFlickerX = randomNumber(0,Width_-len(flickeryThing))
+            bottomFlickerX = randomNumber(0,Width_-len(frameTracker))
+            leftFlickerY = randomNumber(0,Height_-len(timestamp))
+            rightFlickerY = randomNumber(0,Height_-len(currentTime))
 
-            if speed > 1:
-                # randomize frame-drops a bit
-                halfSpeed = halfOf(speed,rounding='down')
-                speed_=randomNumber(speed-halfSpeed,speed+halfSpeed)
-                tracker+=speed_
+        # the flickery thing!
+        page.cell(topFlickerX,0)
+        page.write(flickeryThing)
+        # frameTracker
+        page.cell(bottomFlickerX,Height_-1)
+        page.write(frameTracker)
+        # time started
+        page.cell(0,leftFlickerY)
+        page.write(timestamp, direction='down')
+        # current time
+        page.cell(Width_-1,rightFlickerY)
+        page.write(currentTime,direction='down')
+
+        if speed > 1:
+            # randomize frame-drops a bit
+            halfSpeed = halfOf(speed,rounding='down')
+            # fetch number b/t half-of-speed and speed+half
+            speed_ = randomNumber(0,speed)
+            speed_ += halfSpeed
+        else:
+            speed_ = speed
+
+        if framesCreated==0 or framesCreated % speed_ == 0 \
+           or (framesCreated-lastFrameDrawn > maxFrameDrop):
+            page.paint()
+            if not sleep(delay):
+                dumptrackertofile(savefile,timestamp)
+                quit()
+            if paused:
+                pause()
+            framesDrawn+=1
+            lastFrameDrawn = framesCreated
+            message+=1
+        framesCreated+=1
+
+        if framesDrawn % longevity == 1:
+            if screenID == totalScreens:
+                screenID = 0
             else:
-                speed_ = speed
+                screenID += 1
 
-            if framesCreated==0 or framesCreated % speed_ == 0 \
-               or (framesCreated-lastFrameDrawn > maxFrameDrop):
-                page.paint()
-                if not sleep(delay):
-                    dumptrackertofile(savefile,flickeryThing,timestamp)
-                    quit()
-                if paused:
-                    pause()
-                framesDrawn+=1
-                lastFrameDrawn = framesCreated
-                message+=1
-            framesCreated+=1
-
-
-            x = randomNumber(0,Width_-1)
-            y = randomNumber(0,Height_-1)
+        if screenID==0:
+            longevity = 250
+            x = randomNumber(1,Width_-2)
+            y = randomNumber(1,Height_-2)
             if i == 7 or i == 24 or i == 31:
                 # move random area to another random area
                 # 1 and -2 to compensate for the borders
-                cols, rows = randomArea(40, 40, cols=(1,Width_-2), rows=(1, Height_-2))
+                movebg= (' '*30) + letters
+                cols, rows = randomArea(10, 10, cols=(1,Width_-2), rows=(1, Height_-2))
                 page.area(cols=cols,rows=rows)
-                if i == 33:
-                    page.move(x=x,y=y,bg=movebg)
-                else:
-                    page.move(x=x,y=y)
+                x = randomNumber(1, Width_-2); y = randomNumber(1, Height_-2)
+                try:
+                    if randomNumber(1,20) < 20:
+                        page.move(x=x,y=y,bg=movebg)
+                    else:
+                        page.move(x=x,y=y)
+                except:
+                    pass
             elif i == 18 or i == 30:
                 # move entire screen in a random direction
                 page.area(rows=(1,Height_-2),cols=(1,Width_-2))
-                rndX=randomNumber(-6,6); rndY=randomNumber(-6,6)
+                rndX=randomNumber(-6,6)
+                rndY=randomNumber(-6,6)
                 page.move(x=rndX, y=rndY)
-                tracker+=rndX+rndY
             elif i == 16:
                 # draw random rectangle
-                cols, rows = randomArea(18, 16, cols=(1,Width_-2), rows=(1, Height_-2))
-                page.area(cols=cols,rows=rows); page.fill() # empty the space
-                page.line(row=rows[0],cols=cols); page.fill('_')
-                page.line(row=rows[1],cols=cols); page.fill('_')
-                page.line(col=cols[0],rows=rows); page.fill('|')
-                page.line(col=cols[1],rows=rows); page.fill('|')
+                cols, rows = randomArea(8, 6, cols=(1,Width_-2), rows=(1, Height_-2))
+                # empty the space out
+                page.area(cols=cols,rows=rows); page.fill()
+                page.area(row=rows[0],cols=cols); page.fill('_')
+                page.area(row=rows[1],cols=cols); page.fill('_')
+                page.area(col=cols[0],rows=rows); page.fill('|')
+                page.area(col=cols[1],rows=rows); page.fill('|')
                 page.cell(cols[0],rows[0]); page.write(' ')
                 page.cell(cols[1],rows[0]); page.write(' ')
             elif i == 33:
                 # draw arrows across somewhere
                 row = randomNumber(1,Height_-2)
-                tracker+=row
-                page.line(row=row)
+                page.row(row)
                 direction = randomChoice(['>','<','><'])
                 page.fill(direction)
             elif i == 15 or i == 17:
                 # draw arrows up and down somewhere
                 col = randomNumber(1,Width_-2)
-                tracker+=col
-                page.line(col=col)
+                page.column(col)
                 direction = randomChoice(['v','^','v^'])
                 page.fill(direction)
+            elif i==20 or i==48:
+                # write random word from a message at random position
+                page.cell(x,y)
+                msg = messages[randomNumber(0,len(messages)-1)]
+                msg = msg.split()
+                page.write(msg[randomNumber(0,len(msg)-1)])
             elif i == 44 or i == 43:
                 # fill random area with random letters or numbers
-                cols, rows = randomArea(8,6,cols=(1,Width_-2),rows=(1,Height_-2))
+                cols, rows = randomArea(10, 10, cols=(1,Width_-2), rows=(1, Height_-2))
                 page.area(cols=cols,rows=rows)
                 choice = randomChoice([letters,numbers])
                 page.fill(choice)
+            elif i == 45:
+                # skew everything a random direction
+                page.area(rows=(1,Height_-2),cols=(1,Width_-2))
+                page.skew(randomChoice(['left', 'right']))
             elif i == 35:
-                rndNum = randomNumber(0,10); tracker += rndNum
+                rndNum = randomNumber(0,10)
                 if rndNum < 10:
-                    spamSmilies(rndNum)
+                    spamSmilies(6)
                 else:
-                    rndX = randomNumber(10,Width_-10); rndY = randomNumber(10,Height_-10)
-                    tracker += rndX + rndY
+                    rndX = randomNumber(0,Width_-20)+10
+                    rndY = randomNumber(0,Height_-20)+10
                     drawHeart(rndX,rndY)
             elif i == 2 or i == 10 or i == 22:
                 # randomly replace sections of numbers with letters
                 # or entire screen of numbers with letters. or vice versa
                 rndNum = randomNumber(0,10)
-                tracker+=rndNum
-                if rndNum < 9:
-                    cols, rows = randomArea(10,10)
-                    page.area(cols=cols,rows=rows)
-                    if rndNum < 5:
-                        page.findReplace(numbers,letters)
-                    else:
-                        page.findReplace(letters,numbers)
+                cols, rows = randomArea(20, 20, cols=(1,Width_-2), rows=(1, Height_-2))
+                page.area(cols=cols,rows=rows)
+                if rndNum < 5:
+                    page.findReplace(numbers,letters)
                 else:
-                    page.everything()
-                    if rndNum==9:
-                        page.findReplace(numbers,letters)
-                    else:
-                        page.findReplace(letters,numbers)
+                    page.findReplace(letters,numbers)
             elif i % 2==0:
                 if speed < 5:
                     number = 3
@@ -257,13 +297,11 @@ def main():
                     number = 1
                 # draw numbers or letters at random positions
                 for _ in range(number):
-                    choice = randomChoice([letters,numbers])
-                    rndIndex = randomNumber(0,len(choice)-1)
-                    tracker+=rndIndex
+                    choice = randomChoice([letters, numbers])
+                    rndIndex = randomNumber(0,len(choice)-2)
                     rndX=randomNumber(1,Width_-2)
                     rndY=randomNumber(1,Height_-2)
                     page.cell(rndX, rndY)
-                    tracker+=rndX+rndY
                     page.write(choice[rndIndex])
             else:
                 # draw random portions of words at a random position
@@ -272,11 +310,8 @@ def main():
                     rndNums=[]
                     for _ in range(2):
                         rndIndex = randomNumber(0,len(words)-1)
-                        tracker+=rndIndex
-                        rndNums.append(randomNumber(0,len(words[rndIndex])-1))
+                        rndNums.append(randomNumber(1,len(words[rndIndex])-1))
                     rndNums.sort()
-                    for num in rndNums:
-                        tracker+=num
                     word += words[rndIndex][rndNums[0]:rndNums[1]]
                 page.cell(x,y)
                 if rndNums[0] != 2:
@@ -285,24 +320,143 @@ def main():
                     page.write(word,direction='down')
 
             if message == nextmessage:
-                tracker+=nextmessage
-                nextmessage = randomNumber(60,120)
-                message=0
                 giveMessage()
+                nextmessage = randomNumber(30,60)
+                message=0
 
-        except KeyboardInterrupt:
-            dumptrackertofile(savefile,flickeryThing,timestamp)
-            quit()
+        elif screenID==1:
+            longevity=100
+            x = randomNumber(1, Width_-2)
+            y = randomNumber(1, Height_-2)
+            if i == 16 or i == 21 or i==25 or i==26:
+                # fill random area with random letters or numbers
+                cols, rows = randomArea(10, 10, cols=(1,Width_-2), rows=(1, Height_-2))
+                page.area(cols=cols,rows=rows)
+                choice = randomChoice([letters,numbers])
+                page.fill(choice)
+            elif i == 17 or i == 19:
+                # skew everything a random direction
+                page.area(rows=(1,Height_-2),cols=(1,Width_-2))
+                page.skew(randomChoice(['left', 'right']))
+            elif i == 18 or i == 30 or i == 31 or i == 32 or i == 33:
+                # move entire screen left
+                page.area(rows=(1,Height_-2),cols=(1,Width_-2))
+                rndX=randomNumber(-10,-1)
+                page.move(x=rndX, y=1)
+            elif i==22 or i==23 or i==24 or i==48:
+                # write random word from a message at random position
+                page.cell(x,y)
+                msg = messages[randomNumber(0,len(messages)-1)]
+                msg = msg.split()
+                page.write(msg[randomNumber(0,len(msg)-1)])
+            # draw random rectangle
+            cols, rows = randomArea(24, 18, cols=(1,Width_-2), rows=(1, Height_-2))
+            page.area(cols=cols,rows=rows)
+            if i % 4 != 0:
+                page.fill() # empty the space
+            page.area(row=rows[0],cols=cols); page.fill('_')
+            page.area(row=rows[1],cols=cols); page.fill('_')
+            page.area(col=cols[0],rows=rows); page.fill('|')
+            page.area(col=cols[1],rows=rows); page.fill('|')
+            page.cell(cols[0],rows[0]); page.write(' ')
+            page.cell(cols[1],rows[0]); page.write(' ')
+
+        elif screenID==2:
+            longevity = 20
+            x = halfOf(Width_); y = halfOf(Height_)
+            if i == 18 or i == 30:
+                # move entire screen in a random direction
+                page.area(rows=(1,Height_-2),cols=(1,Width_-2))
+                rndX=randomNumber(0,13)-6
+                rndY=randomNumber(0,13)-6
+                page.move(x=rndX, y=rndY)
+            else:
+                x = halfOf(Width_); y = halfOf(Height_)
+                rndX = randomNumber(1,Width_-2)
+                choice = randomNumber(0,3)
+                page.line((x, y), (rndX, randomChoice([1,Height_-2])))
+                if choice == 0 :
+                    page.fill(letters)
+                elif choice == 1:
+                    page.fill(numbers)
+                elif choice == 2:
+                    if randomNumber(0,40) > 0:
+                        word='' # random portion of a word
+                        for _ in range(2):
+                            rndNums=[]
+                            for _ in range(2):
+                                rndIndex = randomNumber(0,len(words)-1)
+                                rndNums.append(randomNumber(0,\
+                                                len(words[rndIndex])-1))
+                            rndNums.sort()
+                            word.join(words[rndIndex][rndNums[0]:rndNums[1]])
+                        page.fill(word)
+                    else:
+                        page.fill(words)
+                elif choice == 3:
+                    msg = messages[randomNumber(0,len(messages)-1)]
+                    msg = msg.split()
+                    page.fill(msg[randomNumber(0,len(msg)-1)])
 
 if __name__=='__main__':
     # because it's fun to see how long I've run this
     savefile = os.getcwd() + '/trackers.dat'
     date, time = getTimestamp('tuple')
-    timestamp = date+' '+time
+    timestamp = '%s %s' % (date, time)
 
-    # start at my fullscreen size
-    Width_=150; Height_=41
-    speed=12; delay=0; paused=False # recommended :P
+    # parse command line arguments
+    fancyline = '#-~-~-~-~-~-~--~-~-~-~-~-~-#'
+    parser = argparse.ArgumentParser(prog='screensaver', description=fancyline,
+                        epilog=fancyline)
+    parser.add_argument('-speed', choices=['snail','slow','fast','faster',
+                        'fastest','turbo'], help='# of frames to calculate on \
+                        average between frames\n', default='fast')
+    parser.add_argument('-size', choices=['classic','big','square','720','tv',
+                        'tall'], default='big')
+    parser.add_argument('--pause', help='wait for a keypress after every frame',
+                        action='store_true')
+    parser.add_argument('--debug', help='displays certain technical details',
+                        action='store_true')
+    arg = vars(parser.parse_args()) # return arguments as a dictionary
+
+    # -speed
+    delay=0
+    if arg['speed']=='snail':
+        speed=1; delay=250
+    elif arg['speed']=='slow':
+        speed=1
+    elif arg['speed']=='fast':
+        speed=5
+    elif arg['speed']=='faster':
+        speed=15
+    elif arg['speed']=='fastest':
+        speed=30
+    elif arg['speed']=='turbo':
+        speed=50
+    # -size
+    if arg['size']=='classic':
+        Width_=80; Height_=41
+    elif arg['size']=='big':
+        Width_=150; Height_=41
+    elif arg['size']=='square':
+        Width_=32; Height_=32
+    elif arg['size']=='720':
+        Width_=80; Height_=26
+    elif arg['size']=='tv':
+        Width_=112; Height_=41
+    elif arg['size']=='tall':
+        Width_=80; Height_=69
+    # --pause
+    if arg['pause']:
+        paused=True
+    else:
+        paused=False
+    if arg['debug']:
+        debug(True,'area','line','cell')
+        global Debug; Debug=True
+    else:
+        debug(False)
+
     msgNum=-1; messages = ['may the fonzie be with you', 'eat olives every day',
         'clean behind your ears', 'an apple a day is bad for you probably',
         'drink more beer, do more dishes', 'who even cares about hamburgers',
@@ -315,54 +469,25 @@ if __name__=='__main__':
         'call all your poor nibling siblings', 'your tongue will get stuck',
         'don\'tcha put it in your mouth', 'don\'tcha stuff it in your face',
         'it looks good to eat', 'powerful vacuums suck', 'guess what I\'m thinking',
-        'what does cat food tastes like?']
+        'what does cat food tastes like?','Harper\'s Little Room','Tarasius is watching']
 
     # random junk to scribble on the screen
     letters = 'abcdefghijklmnopqrstuvwxyzxxxxxBBBBBBBBBBBBABCDEFGHIJKLNOPQSTUVWXYZ'
-    numbers = '00000001111111129$%%%@#!@!!@#$^*&--==---=-=********##############'
-    words = ['Brianna','sister','beautiful','symmetrical','patterns','olives','farts','tassaron','love love',\
-            'Jade Jade','Carliii','Nathanael','dick','dicks','big butts','dancers','cyan','eyeballs','boobs','love love','love love']
+    numbers = '371371371371222$%%%@#!@!!@#$&&&&????$$$****#######'
+    words=[ 'Brianna','sister','beautiful','symmetrical','patterns','olives',
+            'farts','tassaron','love love','Jade Jade','Carliii','Nathanael',
+            'dick','dicks','big butts','dancers','cyan','eyeballs','boobs',
+            'love love','love love','treadmills','screensaver','funky','laundry',
+            'hairballs','kittens','asteroids','dinosaurs','magic','frighten',
+            'Tarasius']
 
-    # if there are arguments...
-    if len(argv) > 1:
-        try:
-            # look for the comma-separated size
-            width, height = argv[1].split(',')
-            Width_=int(width); Height_=int(height)
-        except ValueError:
-            # look for a size keyword instead
-            if argv[1]=='tv':
-                Width_=112; Height_=41
-            elif argv[1]=='720':
-                Width_=80; Height_=26
-            elif argv[1]=='big':
-                Width_=150; Height_=41
-            elif argv[1]=='old':
-                Width_=80; Height_=41
-            elif argv[1]=='tall':
-                Height_=69
-            elif argv[1]=='square':
-                Width_=32; Height_=32
-    if len(argv) > 2:
-        # controls how often the screen is painted
-        try:
-            speed = int(argv[2])
-            if speed < 1:
-                speed=1
-        except ValueError:
-            if argv[2]=='slow':
-                speed=1
-            elif argv[2]=='fast':
-                speed=3
-            elif argv[2]=='faster':
-                speed=12
-            elif argv[2]=='fastest':
-                speed=27
-            elif argv[2]=='snail':
-                speed=1; delay=200
-    if len(argv) > 3:
-        if argv[3]=='pause':
-            paused=True
+    init('Screensaver',width=Width_,height=Height_,forceSize=True,beQuiet=True,
+    brain=True,memory=300)
+    global page; page = screen()
 
-    while True:
-        main()
+    try:
+        play(1)
+    except KeyboardInterrupt:
+        dumptrackertofile(savefile,timestamp)
+        quit()
+
