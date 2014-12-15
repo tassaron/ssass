@@ -4,8 +4,9 @@
 #
 #                               ssass.py
 #             The Somewhat Satisfactory ASCII Screen Simplifier
-#                       an experiment by tassaron
-#                          written Nov-Dec 2014
+#                         written by: tassaron
+#                          created: 26.11.2014
+#                         modified: 14.12.2014
 #
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 
@@ -15,34 +16,53 @@ import sys
 import os
 import time
 import math
-import random
-import threading # IDEAL: should only load this if we need it for a brain
+import threading
+import random as builtinrandom
 from copy import deepcopy
-from subprocess import call
+from subprocess import call, DEVNULL
 
 # import different things depending on OS, and set a constant for later use
 if os.name=='nt':
     _OSenv = 'nt'
     import msvcrt
+    import winsound
 else:
     _OSenv = 'other'
     import tty
     import termios
 
+cwd = os.getcwd() + '/'
+
+def currentOS():
+    global _OSenv
+    return _OSenv
+
+def currentDir():
+    global cwd
+    return cwd
+
 Debug=False
+DebugMessage='Hello World!'
+DebugDisables=[]
 
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 #   BASIC FUNCTIONS AND CLASSES THAT I RARELY CHANGE
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 
 # initializes stuff we need - this must be run ONCE before anything else
-#   e.g., init('Title',width=Width_,height=Height_,forceSize=True,beQuiet=True,
-#         brain=True,memory=250)
-def init(title_='Defaultline Tittle',**keyword):
+#   e.g., init(title='Title',width=Width_,height=Height_,forceSize=True,
+#              beQuiet=True, brain=True,memory=250,sound=True)
+def init(**keyword):
     global Width_; Width_=80
     global Height_; Height_=40
     global busy; busy=False
-    global title; title = title_
+    global title
+    keywords = keyword.keys()
+
+    if 'title' in keywords:
+        title = keyword['title']
+    else:
+        title = "Defaultline Tittle"
 
     # give cmd the correct title
     if _OSenv=='nt':
@@ -51,7 +71,6 @@ def init(title_='Defaultline Tittle',**keyword):
     # settings that everyone needs
     def defineSettings():
         global cwd
-        cwd = os.getcwd() + '/'
         savefile =  cwd + title + '_save.dat'
         errfile = cwd + title + '_error.log'
         global busy; busy=False
@@ -83,25 +102,46 @@ def init(title_='Defaultline Tittle',**keyword):
     defineSettings()
     constructErrorDb()
 
-    # interpret keywords
-    keywords = keyword.keys()
-    if 'brain' in keywords:
-        # turn on random number generator
-        global brainEnabled; brainEnabled=True
-        global mainBrain
-        if 'memory' in keywords:
-            mainBrain = brain(memory=keyword['memory'])
-        else:
-            mainBrain = brain()
-        global recycled; recycled=0
+
+    if 'brain' in keywords and keyword['brain']==True:
+        global brainEnabled
+        if not brainEnabled:
+            # create the mainBrain, a random number generator
+            brainEnabled=True
+            global mainBrain
+            if 'memory' in keywords:
+                mainBrain = Brain(memory=keyword['memory'])
+            else:
+                mainBrain = Brain()
+            global recycled; recycled=0
 
     if 'width' in keywords:
         Width_ = keyword['width']
 
+    global soundPlaya; soundPlaya = None
+    # enable sound and find out how to play it
+    if 'sound' in keywords and keyword['sound']==True:
+        if _OSenv=='nt':
+            soundPlaya = 'winsound'
+        else:
+            # figure out best sound-player to use
+            # (this part taken from ninedotnine)
+            testWav = cwd + 'sound/test.wav'
+            players = ('paplay', 'aplay', 'mplayer')
+            for playa in players:
+                try:
+                    exit = call([playa, testWav],
+                                stdout=DEVNULL, stderr=DEVNULL)
+                except FileNotFoundError:
+                    # this program isn't installed, move on to the next one
+                    continue
+                if exit == 0:
+                    soundPlaya = playa
+                    break
+
     if 'height' in keywords:
         Height_ = keyword['height']
         # height shouldn't be specified if there's no screen being used, really
-        global ScreenIndex; ScreenIndex=[]
 
         # think about forcing the screen size if height is defined
         if 'forceSize' in keywords and keyword['forceSize']!=False:
@@ -159,8 +199,8 @@ def parseArgs(prog,**keyword):
 
 # quickly starts the program up for me to debug
 def tass():
-    debug()
-    init('Whatever Who Cares',height=38,brain=True)
+    debug(True)
+    init(title='Whatever Who Cares',height=38,brain=True,sound=True)
 
 # stops user from barfing on the display while things are being drawn
 # totally stole this from my friend ninedotnine ;)
@@ -203,11 +243,11 @@ def chunderEverywhere(err='UnknownError'):
     string = errors[err]
     newstring=''
     for character in string:
-        if randomNumber()==1:
+        if random.number()==1:
             character.upper()
         newstring+=character
     disp.write(newstring)
-    print(errors[err], file=errfile)
+    #print(errors[err], file=errfile)
     quit()
 
 # pauses for a certain amount of time without asking for user input
@@ -215,9 +255,10 @@ def chunderEverywhere(err='UnknownError'):
 def sleep(length=0,force=False):
     if force==False:
         # any less than this encourages flickering
-        if length<(halfOf(Width_)+20): # width is really the deciding factor
-            length=(halfOf(Width_)+20)
-    # time.sleep uses seconds. let's use milliseconds
+        if length < halfOf(Width_+20):
+            # width is really the deciding factor
+            length=halfOf(Width_+20)
+    # time.sleep uses seconds. we use milliseconds
     length=length/1000
 
     global busy
@@ -278,12 +319,12 @@ def load(savefile, label='saved'):
 # debug mode - makes some functions print technical details of current actions
 # into a file called title_debug.dat
 def debug(enable=True, *disables):
+    global DebugDisables; DebugDisables=[]
+    for keyword in disables:
+        DebugDisables.append(keyword)
     global Debug
     if enable:
         Debug=True
-        global DebugDisables; DebugDisables=[]
-        for keyword in disables:
-            DebugDisables.append(keyword)
         cwd = os.getcwd() + '/Screensaver'
         debugFile = cwd + '_debug.dat'
         # overwrite old debug file
@@ -294,18 +335,38 @@ def debug(enable=True, *disables):
 
 # writes debug messages to a file
 def debugMessage(action, **keyword):
-    if Debug and action not in DebugDisables:
+    if action not in DebugDisables:
         global cwd; global title
         debugFile = cwd + title + '_debug.dat'
         keywords = sorted(keyword.keys())
-        with open(debugFile, 'a', encoding='utf-8') as savefile:
-            print('%s {' % capitalize(action),file=savefile,end='')
-            for key in keywords:
-                    if key != 'message':
-                        print(' %s: %s;' % (key, keyword[key]),file=savefile,end='')
-                    else:
-                        print(' %s' % keyword[key],file=savefile,end='')
-            print(' }',file=savefile)
+        string = '%s {' % capitalize(action)
+        for key in keywords:
+            if key != 'message':
+                string += ' %s: %s;' % (key, keyword[key])
+            else:
+                string += ' %s' % keyword[key]
+        string += '}'
+
+        try:
+            diceroll = random.number(0,4)
+        except NameError:
+            # debug was initialized somewhere awkward so random.number()
+            # expects a main brain which may not be ready yet
+            diceroll = builtinrandom.randint(0,4)
+
+        # sometimes tell the global tracker about the new debug message
+        # doing it sometimes stops it from being spammed with actions
+        # that repeat every time the screen is painted
+        global DebugMessage
+        if len(DebugDisables)<2:
+            if diceroll == 4:
+                DebugMessage = string
+        else:
+            DebugMessage = string
+
+        if Debug:
+            with open(debugFile, 'a', encoding='utf-8') as savefile:
+                print(string,file=savefile)
 
 # safely exit the program
 def quit(clearDisplay=True):
@@ -336,8 +397,8 @@ class disp:
             except KeyboardInterrupt:
                 pass # whatever
         else:
-            #call(["printf", "\033c"]) # maybe?
-            call("clear",shell=True)
+            call(["printf", "\033c"]) # maybe?
+            #call("clear",shell=True)
 
     # writes to the display. end is # of linebreaks. align is left, centre, right
     def write(line, end=1, align='left'):
@@ -368,6 +429,34 @@ class disp:
         busy=False
 
 
+def playSound(sound, ext='.wav', meta=False):
+    global cwd
+    sounddir = cwd + 'sound/'
+    if not os.path.isdir(sounddir):
+        return False
+
+    global soundPlaya
+    if soundPlaya:
+        if not meta:
+            playTheSound = threading.Thread(target=playSound,args=(sound,ext,True),daemon=True)
+            playTheSound.start()
+        else:
+            try:
+                if soundPlaya=='winsound':
+                    error = winsound.PlaySound(sounddir + sound + '.wav',
+                            winsound.SND_FILENAME)
+                else:
+                    # making this explicit since shell exits
+                    # go opposite of typical python booleans
+                    # global playa
+                    if call([soundPlaya, sounddir + sound + ext],
+                            stdout=DEVNULL, stderr=DEVNULL) != 0:
+                        return False
+            except Exception as e:
+                print('strange error playing sounds. i didnt test much\n', e)
+                quit()
+        return True
+    return False
 
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 #   USER INPUT RELATED STUFF
@@ -484,114 +573,160 @@ def getStringInput(message=None):
 #   RANDOMNESS
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 
-# choose one choice from a list; uses main brain object if it's enabled
-def randomChoice(choices=['dog','cat']):
-    # IDEAL: add weighted choices at some point
-    if not brainEnabled:
-        return random.choice(choices)
-    else:
-        return choices[randomNumber(0,len(choices)-1)]
+# random number functions
+class random:
 
-# returns tuple of cols and rows ( presumably to be passed into area() )
-# optional maxWidth/maxHeight defines maximum difference between cols/rows
-# uses main brain object if it's enabled
-def randomArea(maxWidth=-1, maxHeight=-1, **keyword):
-    keywords = keyword.keys()
+    # generates number between 0 and Width_ by default
+    # because that's usually the biggest # required
+    # uses main brain object if it's enabled
+    def number(lower=0, *keywords):
+        # default upper range to width
+        global Width_; upper=Width_
+        for keyword in keywords:
+            if type(keyword)==int:
+                # accept any int as new upper range
+                upper=keyword
 
-    # here's one way of doing cols/rows without copy and pasting code
-    totalSize = [ Width_-1, Height_-1 ]
-    maxSize = [ maxWidth, maxHeight ]
+        if lower == upper:
+            return lower
 
-    for i in range(2):
-        # determine where to pick a starting coord
-        # IDEAL: should be better than this. doesn't really work
-        if 'cols' in keywords and i==0:
-            col1, col2 = keyword['cols']
-            start = randomNumber(col1, col2)
-        elif 'rows' in keywords and i==2:
-            row1, row2 = keyword['rows']
-            start = randomNumber(row1, row2)
+        global brainEnabled
+        if not brainEnabled:
+            number = builtinrandom.randint(lower,upper)
         else:
-            start = randomNumber(0, totalSize[i])
-
-        randomRange=[]
-        for _ in range(2):
-            if maxSize[i] != -1:
-                randomRange.append( randomNumber(0, maxSize[i]) )
+            global mainBrain
+            global rndNum; global smallRndNum
+            if upper!=Width_:
+                if upper > 60:
+                    mainBrain.getRandomNumber()
+                    number = random.squeezeNumber(rndNum, upper)
+                else:
+                    mainBrain.getSmallRandomNumber()
+                    number = random.squeezeNumber(smallRndNum, upper)
+                if lower!=0:
+                    number+=lower
             else:
-                randomRange.append( randomNumber(0, totalSize[i]) )
-        randomRange.sort() # put them in order smallest > lowest
-
-        # if the bigger coord is off the screen, crop it at the edge
-        if randomRange[1] > totalSize[i]:
-            randomRange[1] = totalSize[i]
-
-        if i==0:
-            cols = ( start + randomRange[0], start + randomRange[1] )
-        else:
-            rows = ( start + randomRange[0], start + randomRange[1] )
-
-    return cols, rows
-
-# generates number between 0 and Width_ by default
-# because that's usually the biggest # required
-# uses main brain object if it's enabled
-def randomNumber(lower=0, *keywords):
-    # default upper range to width
-    global Width_; upper=Width_
-    for keyword in keywords:
-        if type(keyword)==int:
-            # accept any int as new upper range
-            upper=keyword
-
-    global brainEnabled
-    if not brainEnabled:
-        number = random.randint(lower,upper)
-    else:
-        global mainBrain
-        global rndNum; global smallRndNum
-        if upper!=Width_:
-            if upper > 50:
                 mainBrain.getRandomNumber()
-                number = squeezeNumber(rndNum, upper)
-            else:
-                mainBrain.getSmallRandomNumber()
-                number = squeezeNumber(smallRndNum, upper)
-            if lower!=0:
-                number+=lower
+                number = rndNum
+        return number
+
+    # squeezes the range of a generated random number
+    # make sure it knows the old maximum number if you don't use the default
+    def squeezeNumber(number, newMax, **keyword):
+        keywords = keyword.keys()
+        if 'direction' in keywords:
+            # round down or up?
+            direction = keyword['direction']
         else:
-            mainBrain.getRandomNumber()
-            number = rndNum
-    global tracker; tracker+=1
-    global bigTracker; bigTracker+=number
-    return number
+            # tell it to decide later
+            direction='decide'
+        if 'oldMax' in keywords:
+            oldMax = keyword['oldMax']
+        elif 'oldmax' in keywords:
+            oldMax = keyword['oldmax']
+        else:
+            # we'll just assume
+            if number > 100:
+                oldMax = 1000
+            else:
+                oldMax = 100
+        proportion = number / oldMax
+        equals = proportion * newMax
+        if direction=='down':
+            return math.floor(equals)
+        elif direction=='up':
+            return math.ceil(equals)
+        else:
+            fraction, integer = math.modf(equals)
+            if fraction >= 0.5:
+                integer+=1
+            return int(integer)
+
+    # choose one choice from a list; uses main brain object if it's enabled
+    def choice(choices=['dog','cat']):
+        # IDEAL: add weighted choices at some point
+        if len(choices)==1:
+            return choices[0]
+        if not brainEnabled:
+            return builtinrandom.choice(choices)
+        else:
+            return choices[random.number(0,len(choices)-1)]
+
+    # returns tuple of cols and rows ( presumably to be passed into area() )
+    # optional maxWidth/maxHeight defines maximum difference between cols/rows
+    # uses main brain object if it's enabled
+    def area(maxWidth=-1, maxHeight=-1, **keyword):
+        keywords = keyword.keys()
+
+        # here's one way of doing cols/rows without copy and pasting code
+        totalSize = [ Width_-1, Height_-1 ]
+        maxSize = [ maxWidth, maxHeight ]
+
+        for i in range(2):
+            # determine where to pick a starting coord
+            # IDEAL: should be better than this. doesn't really work
+            if 'cols' in keywords and i==0:
+                col1, col2 = keyword['cols']
+                start = random.number(col1, col2)
+            elif 'rows' in keywords and i==2:
+                row1, row2 = keyword['rows']
+                start = random.number(row1, row2)
+            else:
+                start = random.number(0, totalSize[i])
+
+            randomRange=[]
+            for _ in range(2):
+                if maxSize[i] != -1:
+                    randomRange.append( random.number(0, maxSize[i]) )
+                else:
+                    randomRange.append( random.number(0, totalSize[i]) )
+            randomRange.sort() # put them in order smallest > lowest
+
+            # if the bigger coord is off the screen, crop it at the edge
+            if randomRange[1] > totalSize[i]:
+                randomRange[1] = totalSize[i]
+
+            if i==0:
+                cols = ( start + randomRange[0], start + randomRange[1] )
+            else:
+                rows = ( start + randomRange[0], start + randomRange[1] )
+
+        return cols, rows
+
+    # squeezes the range of a generated random area
+    def squeezeArea(area,into):
+        cols, rows = area
+        col1, col2 = cols
+        col1=int(col1*into); col2=int(col2*into)
+        cols = (col1, col2)
+        row1, row2 = rows
+        row1=int(row1*into); row2=int(row2*into)
+        rows = (row1, row2)
+        return cols, rows
 
 # attempts to regulate frame speed by allowing the program to reuse
 # previously generated random numbers while generating new ones
 # in a background thread. as a possibly-useful side effect, allows us to shave
 # dice if we ever need to ;)
-class brain:
+class Brain:
 
     def __init__(self, **keyword):
         # use keywords to enable/disable extra things
 
         # This gives more beautiful patterns but takes longer
         # to generate a number than the built-in random
-        self.thoughtShuffler = random.SystemRandom()
+        self.thoughtShuffler = builtinrandom.SystemRandom()
 
         keywords = keyword.keys()
         if 'memory' in keywords:
             self.memory = int(keyword['memory'])
         else:
-            self.memory = 250 # default
+            self.memory = 50 # default
 
         # initialize lists of random numbers
-        self.rndNums = [i for i in range(1000)]
-        self.smallRndNums = [i for i in range(100)]*self.memory
-        self.rndNumMaxI = len(self.rndNums)
-        self.smallRndNumMaxI = len(self.smallRndNums)
-        self.rndNumI = 0; self.smallRndNumI = 0
-        debugMessage('brain',message=' Generated %s numbers for the pool...' % str(self.rndNumMaxI+self.smallRndNumMaxI))
+        self.tracker=0; self.bigTracker=0
+        self.recycled=0
+        self.initializeRndNums()
 
         # shuffle number pool
         reshuffle = threading.Thread(target=self.shuffleNumbers,daemon=True)
@@ -602,27 +737,33 @@ class brain:
     def shuffleNumbers(self):
         self.thoughtShuffler.shuffle(self.rndNums)
         debugMessage('brain',message='Recycled %s numbers while shuffling rndNums' % self.rndNumI)
-        global recycled; recycled+=self.rndNumI
+        self.recycled+=self.rndNumI
 
     def shuffleSmallNumbers(self):
         self.thoughtShuffler.shuffle(self.smallRndNums)
         debugMessage('brain',message='Recycled %s numbers while shuffling smallRndNums' % self.smallRndNumI)
-        global recycled; recycled+=self.rndNumI
+        self.recycled+=self.rndNumI
 
     def getSmallRandomNumber(self):
         global smallRndNum
-        if self.smallRndNumI > self.smallRndNumMaxI-500:
+        if self.smallRndNumI > self.smallRndNumMaxI-1000:
             # reshuffle pregenerated numbers in a new thread
             self.smallRndNumI=0
             debugMessage('brain',message='Shuffling smallRndNums...')
             reshuffle = threading.Thread(target=self.shuffleSmallNumbers,daemon=True)
             reshuffle.start()
+            if random.number(0,99)>90:
+                # recreate random numbers occasionally
+                reinitialize = threading.Thread(target=self.initializeRndNums,daemon=True)
+                reinitialize.start()
         try:
             smallRndNum = self.smallRndNums[self.smallRndNumI]
         except IndexError:
             debugMessage('brain',message='Lag!', smallRndNum='37')
             smallRndNum=37
         self.smallRndNumI+=1
+        self.tracker+=1
+        self.bigTracker+=smallRndNum
 
     def getRandomNumber(self):
         global rndNum
@@ -638,68 +779,81 @@ class brain:
             debugMessage('brain',message='Lag!', rndNum='371')
             rndNum = 371
         self.rndNumI+=1
+        self.tracker+=1
+        self.bigTracker+=rndNum
 
-# it's fun to pointlessly keep track of numbers
-def getTrackers():
-    global tracker; global bigTracker
+    # puts the random numbers back in order
+    def reorderThoughts(self,direction='forward'):
+        think = threading.Thread(target=self.setRndNums,args=(direction,),daemon=True)
+        think.start()
+        debugMessage('brain',message=' Reordering thoughts %s...' % direction)
+
+    def setRndNums(self,direction='forward'):
+        if direction=='forward':
+            self.rndNums = [i for i in range(1000)]
+            self.smallRndNums = [i for i in range(100)]*self.memory
+        elif direction =='backward':
+            self.rndNums = [i for i in range(1000,-1,-1)]
+            self.smallRndNums = [i for i in range(100,-1,-1)]*self.memory
+        self.rndNumMaxI = len(self.rndNums)
+        self.smallRndNumMaxI = len(self.smallRndNums)
+        self.rndNumI = 0; self.smallRndNumI = 0
+        debugMessage('brain',message=' Generated %s sequential numbers for the pool...' % str(self.rndNumMaxI+self.smallRndNumMaxI))
+
+    # fills random number list with random numbers
+    def initializeRndNums(self):
+        self.rndNums = [ self.thoughtShuffler.randint(0,999) for i in range(1000)]
+        self.smallRndNums = [ self.thoughtShuffler.randint(0,99) for i in range(100)]*self.memory
+        self.rndNumMaxI = len(self.rndNums)
+        self.smallRndNumMaxI = len(self.smallRndNums)
+        self.rndNumI = 0; self.smallRndNumI = 0
+        debugMessage('brain',message=' Generated %s random numbers for the pool...' % str(self.rndNumMaxI+self.smallRndNumMaxI))
+
+    # it's fun to pointlessly keep track of numbers
+    def getTrackers(self):
+        global rndNum; global smallRndNum; global DebugMessage
+        return self.tracker, self.bigTracker, self.recycled, self.rndNumI, self.smallRndNumI, rndNum, smallRndNum, DebugMessage
+
+# allow another program using the module to access the mainBrain
+def getBrain():
+    global brainEnabled; global mainBrain
     if brainEnabled:
-        global recycled
-        return tracker, bigTracker, recycled
-    else:
-        return tracker, bigTracker, 0
-
-# squeezes the range of a generated random number
-# make sure it knows the old maximum number if you don't use the default
-def squeezeNumber(number, newMax, **keyword):
-    keywords = keyword.keys()
-    if 'direction' in keywords:
-        # round down or up?
-        direction = keyword['direction']
-    else:
-        # tell it to decide later
-        direction='decide'
-    if 'oldMax' in keywords:
-        oldMax = keyword['oldMax']
-    elif 'oldmax' in keywords:
-        oldMax = keyword['oldmax']
-    else:
-        # we'll just assume
-        if number > 50:
-            oldMax = 1000
-        else:
-            oldMax = 50
-    proportion = number / oldMax
-    equals = proportion * newMax
-    if direction=='down':
-        return math.floor(equals)
-    elif direction=='up':
-        return math.ceil(equals)
-    else:
-        fraction, integer = math.modf(equals)
-        if fraction >= 0.5:
-            integer+=1
-        return int(integer)
-
-# squeezes the range of a generated random area
-def squeezeArea(area,into):
-    cols, rows = area
-    col1, col2 = cols
-    col1=int(col1*into); col2=int(col2*into)
-    cols = (col1, col2)
-    row1, row2 = rows
-    row1=int(row1*into); row2=int(row2*into)
-    rows = (row1, row2)
-    return cols, rows
-
+        return mainBrain
 
 
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 #   MISCELLANEOUS HANDY TOOLS
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 
-# I feel like I may want to do something more with this someday
+# quickly starts something to process in the background
+def startDaemonThread(target, **keyword):
+    result =  threading.Thread(target=target, daemon=True, **keyword)
+    result.start()
+
+# starts a timer up and returns the timer object
+def startTimer(delay, target):
+    newTimer = threading.Timer(float(delay), target)
+    newTimer.start()
+    return newTimer
+
+'''
+# turns string into 3-string tuple containing ASCII art representation of string
+def wordArt(string):
+    string1='';string2='';string3=''
+    for letter in string:
+        letter = art['letter']
+        for segment in letter:
+            str
+'''
+
 def listFromString(string):
     return list(string)
+
+def stringFromList(thelist):
+    string=''
+    for item in thelist:
+        string = "%s%s" % (string,item)
+    return string
 
 # capitalizes first letter by default, or a specified letter
 def capitalize(string, index=0):
@@ -788,14 +942,12 @@ def getTimestamp(type_='tuple'):
 
 # instances have 1 table of columns and rows each to represent a screen which
 # can be controlled using their selector and action methods
-class screen:
+class Screen:
 
     # INSTANCE VARIABLES
     '''
      str self.action  <- stores most recently triggered 'action' function
     list self.screen
-     int self.announceX
-     int self.announceY
      int self.x
      int self.y
     bool self.centreY
@@ -811,19 +963,13 @@ class screen:
     # create a new screen object, return the screenID
     def __init__(self):
         self.action='init'
+
         # the screen is a list with (Height) # of (Width)-length rows
         self.screen = [' ']*Height_
         self.screen = [ [row]*Width_ for row in self.screen]
 
-        # create announceX, announceY
-        self.announceX=halfOf(Width_)
-        self.announceY=halfOf(Height_-6)
         # set some defaults for cell()
         self.x=0; self.y=0; self.centreX=False; self.centreY=False
-
-        global ScreenIndex
-        self.screenID = len(ScreenIndex)
-        ScreenIndex.append(self)
 
         debugMessage('screen',message=' Newly Initialized')
 
@@ -854,7 +1000,7 @@ class screen:
                 self.y=Height_-1
         else:
             self.y=y
-        debugMessage('cell',x=self.x,y=self.y)
+        debugMessage('cell',message='selected',x=self.x,y=self.y)
 
     # selects an area (called by most selector methods)
     # expects to receive ranges of cols & rows or single one & range of another
@@ -1046,34 +1192,26 @@ class screen:
     #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 
     # paint the screen  (aka draw it, display it, w/e)
-    def paint(self, paintAllAtOnce=True):
+    def paint(self, clearDisplay=True):
         global busy
         while not busy:
             busy=True
+            entirescreen = ''
+            for y in range(Height_):
+                row = self.screen[y]
+                for x in range(Width_):
+                    cell = row[x]
+                    entirescreen += cell
+                # write a linebreak after every row
+                entirescreen+='\n'
             # in Windows it flickers if we don't clear
-            # in Linux it flickers if we do :P
+            # so we'll force it no matter what
             if _OSenv=='nt':
                 disp.clear()
-            if paintAllAtOnce:
-                entirescreen = ''
-                for y in range(Height_):
-                    row = self.screen[y]
-                    for x in range(Width_):
-                        cell = row[x]
-                        entirescreen += cell
-                    # write a linebreak after every row
-                    entirescreen+='\n'
-                # draw the entire screen at once (reduces flicker on some machines)
-                sys.stdout.write(entirescreen)
-            else:
-                for y in range(Height_):
-                    row = self.screen[y]
-                    for x in range(Width_):
-                        cell = row[x]
-                        sys.stdout.write(cell)
-                        sys.stdout.flush()
-                    sys.stdout.write('\n')
-            sys.stdout.flush()
+            elif clearDisplay:
+                disp.clear()
+            # draw the entire screen at once
+            sys.stdout.write(entirescreen)
         busy=False
         debugMessage('screen',message=' Painted~')
         return True
@@ -1096,13 +1234,17 @@ class screen:
                 row = self.screen[y]
                 try:
                     if x >= 0:
-                        row[x] = randomChoice(characters)
-                        rndNumsReqd+=1
+                        if len(characters)>1:
+                            row[x] = random.choice(characters)
+                            rndNumsReqd+=1
+                        else:
+                            row[x] = characters[0]
                 except IndexError:
                     continue # don't draw columns that are off-screen
             except IndexError:
                 break # we're done if the current row is off-screen
-        debugMessage('screen',message=' Filled using %s random numbers' % rndNumsReqd)
+        if rndNumsReqd>0:
+            debugMessage('screen',message=' Filled using %s random numbers' % rndNumsReqd)
 
     # writes text starting at cell
     def write(self, *messages, **keyword):
@@ -1154,31 +1296,8 @@ class screen:
                                 continue
                         x+=1
 
-    def setAnnouncementArea(self, x=-1, y=-1):
-        if x==-1:
-            self.announceX=0
-        elif type(x)==int:
-            self.announceX=x
-        elif x == 'centre' or x == 'center':
-            self.announceX='centre'
-
-        if y==-1:
-            self.announceY=0
-        elif type(y)==int:
-            self.announceY=y
-        elif y == 'centre' or y == 'center':
-            self.announceY=halfOf(Height_-1)
-
-    # similar to screen.wite except it remembers where to write and automatically
-    # drops a line every time it's called, until the area is reset manually
-    def announce(self, *messages):
-        for message in messages:
-            if type(message)==int:
-                self.announceY+=message
-            else:
-                self.cell(self.announceX,self.announceY); self.write(message)
-                if self.announceY < Height_-1:
-                    self.announceY+=1
+            debugMessage('screen',message='wrote within %s,%s and %s,%s' % (self.x,
+                        self.y, x, y))
 
     # moves things to a new x and y, replacing the old area with ch
     def move(self,**keyword):
@@ -1193,7 +1312,7 @@ class screen:
             if 'x' in keywords and 'y' in keywords:
                 row = self.screen[self.y]
                 clipboard = row[self.x]
-                row[self.x] = randomChoice(bg)
+                row[self.x] = random.choice(bg)
                 row = self.screen[keyword['y']]
                 row[keyword['x']] = clipboard
 
@@ -1237,7 +1356,7 @@ class screen:
                     self.area(cols=newcols, rows=newrows)
 
                     # IDEAL: fix fill and move both doing this bg/fill thing...
-                    i=0; choice = randomChoice(bg)
+                    i=0; choice = random.choice(bg)
                     for coord in self.selectedCells:
                         x, y = coord
                         try:
@@ -1304,6 +1423,11 @@ class screen:
         # reset this bc this isn't an explicit selector
         self.action = oldAction
 
+
+    #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
+    #   UTILITY/MISC METHODS
+    #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
+
     # returns a true copy of the screen
     def takeSnapshot(self):
         return deepcopy(self.screen)
@@ -1341,7 +1465,7 @@ class screen:
 
     # displays row and col numbers on the edges of the screen
     # at the end, sets screen back to how it was (but doesn't draw it again)
-    def showAxisLabels():
+    def showAxisLabels(self):
         # save the current screen
         restorePoint = self.takeSnapshot()
         for col in range(Width_):
@@ -1357,6 +1481,22 @@ class screen:
         # set the screen back to how it was before
         self.replaceWithSnapshot(restorePoint)
 
+    # adds either standard ( _ and | ) borders or randomized borders from a string
+    def addBorders(self, borders='standard'):
+        if borders == 'standard':
+            fill = ['_','_','|','|']
+        else:
+            fill = [borders]*4
+        action = [
+            'self.area(cols=(1,Width_-2),row=0)',
+            'self.area(cols=(1,Width_-2),row=Height_-1)',
+            'self.area(col=0, rows=(1,Height_-1))',
+            'self.area(col=Width_-1, rows=(1,Height_-1))'
+        ]
+        for i in range(4):
+            eval( action[i] );
+            self.fill( fill[i] )
+
     # replaces characters with other characters within an area
     def findReplace(self, thingToFind, replaceWith):
         thingsToFind = listFromString(thingToFind)
@@ -1367,12 +1507,60 @@ class screen:
             try:
                 row = self.screen[y]
                 if row[x] in thingsToFind:
-                    row[x] = randomChoice(thingsToReplaceWith)
+                    row[x] = random.choice(thingsToReplaceWith)
                     rndNumsReqd+=1
             except IndexError:
                 pass
         debugMessage('screen',message=" Used %s random numbers to findReplace cells" % rndNumsReqd)
 
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
+#   ENTITY STUFF
+#=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
+
+# a foreground layer that keeps track of attributes abouts its contents and
+# calculate things about them before painting them on top of a static Screen
+# object. cannot be drawn on directly
+class EntityLayer:
+
+    def __init__(self):
+        self.graphics={}
+        self.entities={}
+
+        # will contain layer information to be applied to the screen table
+        self.layer = []
+
+    # registers a list under a name in the graphics table
+    def newGraphic(self, name, graphic):
+        self.graphics[name] = list(graphic)
+
+    # registers a new entity
+    def newEntity(self, name, graphicname, *traits):
+        if len(traits)>0:
+            self.entities[name] = {
+                'graphic' : graphicname,
+                'traits'  : [trait for trait in traits]
+            }
+            self.interpretTraits(name)
+
+    # places a registered entity at a position on the layer
+    def spawnEntity(self, name, x, y):
+        # add the entity's name to the list to be thought about later
+        if Width_ > x > -1 and Height_ > y > -1:
+            self.layer.append([x,y,name,self.entities[name]])
+
+    # some traits require additional info which this function adds
+    def interpretTraits(self,entityname):
+
+        # IDEAL: use degrees and translate that similar to how line() skews angles
+        entityDirections = ['n','s','e','w','ne','nw','se','sw']
+
+        entity = self.entities[entityname]
+        if 'mobile' in entity['traits']:
+            entity['direction'] = random.choice(entityDirections)
+            entity['velocity'] = 1 # how many cells per frame
+
+    def paint(self, Screen):
+        pass
 
 #=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~==~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=#
 #                                  Buh-bye!

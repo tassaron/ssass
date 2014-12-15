@@ -12,7 +12,7 @@ def makeBorders(ch):
     construction.row(Height_); construction.fill(ch)
 
 def construct(page, *keywords):
-    construction = screen()
+    construction = Screen()
 
     if page=='mainmenu':
         #draw borders
@@ -97,16 +97,16 @@ def do(page, construction, *keywords):
 
     if page=='mainmenu':
         construction.paint()
-        ch = getInput('type int','valid 1 2 3 4 5 6 7 9')
+        ch = getInput(valid='12345679')
         # check input
-        if ch==1:
+        if ch=='1':
             construct('demo')
-        elif ch==2:
+        elif ch=='2':
             construct('screensaver')
-        elif ch==3:
+        elif ch=='3':
             x=1; y=1; crosshairs=False; firsttimewalking=True
             construct('walk')
-        elif ch==4:
+        elif ch=='4':
             if borders:
                 borders=False
                 # clear the borders
@@ -115,36 +115,36 @@ def do(page, construction, *keywords):
                 borders=True
                 makeBorders('#')
             do('mainmenu',construction)
-        elif ch==5:
+        elif ch=='5':
             construct('canvas')
-        elif ch==6:
+        elif ch=='6':
             # iterate as many times as there are rows
             for i in range(Height_):
                 # move entire screen, starting at the row we're on, down by 1
-                construction.area(cols=(0,Width_),rows=(i,Height_))
-                construction.move(x=0,y=i+1)
+                construction.everything()
+                construction.move(x=0,y=0+i)
                 if not construction.paint():
                     construct('mainmenu')
                 if not sleep():
                     construct('mainmenu')
             # once done animating, show the last screen
             do('transition',construction)
-        elif ch==7:
+        elif ch=='7':
             construction.showAxisLabels()
             pause() # ehhh
             do('mainmenu',construction)
-        elif ch==9:
+        elif ch=='9':
             construct('goodbye')
         # dan's gonna say I found a way to use goto in Python
 
 
     elif page=='demo':
-        construction = screen()
+        construction = Screen()
         construction.setAnnouncementArea()
         construction.announce(17, 'What do you think?', '1) It was good',\
         '2) Back to mainmenu', '3) Quit now!','9) I want to see more')
         construction.paint()
-        ch = getInput('type int','valid 1 2 3 9')
+        ch = getInput(vartype='int',valid='1239')
         if ch==1:
             snapshot = construction.takeSnapshot()
             construction.everything(); construction.fill() #clear
@@ -217,22 +217,22 @@ def do(page, construction, *keywords):
         construction.cell(x,y); construction.write('@')
         # actually draw the construction
         construction.paint()
-        ch = getInput('type char','valid a w s d c b')
+        ch = getInput(vartype='char',valid='awsdcb')
         if ch=='a':   # left
             if x>0:
-                construction.cell(x,y); construction.move(x-1,y)
+                construction.cell(x,y); construction.move(x=x-1,y=y)
                 x-=1
         elif ch=='w': # up
             if y>0:
-                construction.cell(x,y); construction.move(x,y-1)
+                construction.cell(x,y); construction.move(x=x,y=y-1)
                 y-=1
         elif ch=='s': # down
             if y<Height_-1:
-                construction.cell(x,y); construction.move(x,y+1)
+                construction.cell(x,y); construction.move(x=x,y=y+1)
                 y+=1
         elif ch=='d': # right
             if x<Width_-1:
-                construction.cell(x,y); construction.move(x+1,y)
+                construction.cell(x,y); construction.move(x=x+1,y=y)
                 x+=1
         elif ch=='b': # GO BACK
             construct('mainmenu')
