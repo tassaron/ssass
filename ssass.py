@@ -738,11 +738,13 @@ class Brain:
         self.thoughtShuffler.shuffle(self.rndNums)
         debugMessage('brain',message='Recycled %s numbers while shuffling rndNums' % self.rndNumI)
         self.recycled+=self.rndNumI
+        self.rndNumI=0
 
     def shuffleSmallNumbers(self):
         self.thoughtShuffler.shuffle(self.smallRndNums)
         debugMessage('brain',message='Recycled %s numbers while shuffling smallRndNums' % self.smallRndNumI)
-        self.recycled+=self.rndNumI
+        self.recycled+=self.smallRndNumI
+        self.smallRndNumI=0
 
     def getSmallRandomNumber(self):
         global smallRndNum
@@ -835,16 +837,6 @@ def startTimer(delay, target):
     newTimer = threading.Timer(float(delay), target)
     newTimer.start()
     return newTimer
-
-'''
-# turns string into 3-string tuple containing ASCII art representation of string
-def wordArt(string):
-    string1='';string2='';string3=''
-    for letter in string:
-        letter = art['letter']
-        for segment in letter:
-            str
-'''
 
 def listFromString(string):
     return list(string)
