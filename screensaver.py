@@ -801,16 +801,16 @@ if __name__=='__main__':
 
     global brainEnabled
     brainEnabled = False if arg['wasteful'] else True
-    beQuiet_ = True if arg['quiet'] else False
+    soundOn = True if arg['quiet'] else False
 
     if not brainEnabled:
         # don't recycle :'c
         init(title='Screensaver',width=Width_,height=Height_,forceSize=True,
-        beQuiet=beQuiet_, sound=True)
+             beQuiet=True, sound=soundOn)
     else:
         # be smart :o)
         init(title='Screensaver',width=Width_,height=Height_,forceSize=True,
-        beQuiet=True, brain=True,memory=300,sound=False)
+             beQuiet=True, brain=True,memory=300,sound=soundOn)
     global page; page = Screen()
 
     try:
